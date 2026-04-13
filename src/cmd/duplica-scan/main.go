@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -124,7 +125,21 @@ func main() {
 		return
 	}
 
-	if !console.ConfirmDeletion(len(selected)) {
+	sort.Strings(selected)
+	totalBytes := int64(0)
+	selectedSet := make(map[string]struct{}, len(selected))
+	for _, path := range selected {
+		selectedSet[path] = struct{}{}
+	}
+	for _, group := range groups {
+		for _, file := range group.Files {
+			if _, ok := selectedSet[file.Path]; ok {
+				totalBytes += file.Size
+			}
+		}
+	}
+
+	if !console.ConfirmDeletionWithPreview(selected, len(selected), totalBytes, *dryRun) {
 		fmt.Println("Deletion canceled by user.")
 		return
 	}

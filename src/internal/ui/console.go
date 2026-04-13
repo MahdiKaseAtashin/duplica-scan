@@ -135,13 +135,39 @@ func (c *Console) ConfirmDeletion(count int) bool {
 	if count == 0 {
 		return false
 	}
-	fmt.Printf("\nConfirm deletion of %d file(s)? Type YES to proceed: ", count)
+
+	return c.ConfirmDeletionWithPreview(nil, count, 0, false)
+}
+
+func (c *Console) ConfirmDeletionWithPreview(selected []string, count int, totalBytes int64, dryRun bool) bool {
+	if count == 0 {
+		return false
+	}
+
+	action := "delete"
+	if dryRun {
+		action = "simulate deletion of"
+	}
+	fmt.Printf("\nAction preview: %s %d file(s), total size: %s\n", action, count, formatBytes(totalBytes))
+	if len(selected) > 0 {
+		fmt.Println("Sample targets:")
+		previewCount := len(selected)
+		if previewCount > 5 {
+			previewCount = 5
+		}
+		for i := 0; i < previewCount; i++ {
+			fmt.Printf("  - %s\n", selected[i])
+		}
+	}
+
+	token := fmt.Sprintf("DELETE %d FILES", count)
+	fmt.Printf("Type %q to confirm: ", token)
 	input, err := c.reader.ReadString('\n')
 	if err != nil {
 		fmt.Printf("Input error: %v\n", err)
 		return false
 	}
-	return strings.TrimSpace(input) == "YES"
+	return strings.TrimSpace(input) == token
 }
 
 func (c *Console) PrintDeletionResults(resultsCount int, failedCount int, dryRun bool) {
