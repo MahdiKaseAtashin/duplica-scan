@@ -1,0 +1,7 @@
+.idea/
+.cursor/
+bin/
+dist/
+coverage.out
+*.log
+*.tmp
