@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"duplica-scan/src/internal/buildinfo"
 	"duplica-scan/src/internal/cleanup"
 	"duplica-scan/src/internal/duplicates"
 	"duplica-scan/src/internal/hash"
@@ -21,6 +22,7 @@ import (
 
 func main() {
 	rootPath := flag.String("path", "", "Directory (or drive root) to scan (required)")
+	showVersion := flag.Bool("version", false, "Print version and exit")
 	dryRun := flag.Bool("dry-run", true, "Dry run mode: report duplicates without deletion")
 	hashWorkers := flag.Int("hash-workers", runtime.NumCPU(), "Number of concurrent hashing workers")
 	excludeExts := flag.String("exclude-exts", "", "Comma-separated file extensions to skip (example: .log,.tmp)")
@@ -31,6 +33,10 @@ func main() {
 	exportPath := flag.String("export-path", "", "Output path for exported report (optional)")
 	autoSelect := flag.String("auto-select", "", "Auto deletion selection strategy: newest or oldest (optional)")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("duplica-scan %s\n", buildinfo.Version)
+		return
+	}
 
 	if *rootPath == "" {
 		fmt.Println("Usage: duplica-scan -path <directory_or_drive_root> [-dry-run=true]")

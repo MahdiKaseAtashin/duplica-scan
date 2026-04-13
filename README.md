@@ -54,6 +54,13 @@ duplica-scan/
 go build -o .\bin\duplica-scan.exe .\src\cmd\duplica-scan
 ```
 
+Build with version metadata:
+
+```powershell
+go build -ldflags "-X duplica-scan/src/internal/buildinfo.Version=0.0.1-dev" -o .\bin\duplica-scan.exe .\src\cmd\duplica-scan
+.\bin\duplica-scan.exe -version
+```
+
 ### Build (macOS/Linux Bash or Zsh)
 
 ```bash
@@ -77,6 +84,13 @@ Or run the helper script:
 
 ```powershell
 .\scripts\build-gui-windows.ps1
+```
+
+Versioned release build (Windows CLI + GUI):
+
+```powershell
+$env:DUPLICA_SCAN_VERSION = "0.0.1-dev"
+.\scripts\build-release-windows.ps1 -Version $env:DUPLICA_SCAN_VERSION
 ```
 
 macOS helper script:

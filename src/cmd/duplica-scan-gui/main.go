@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"duplica-scan/src/internal/buildinfo"
 	"duplica-scan/src/internal/cleanup"
 	"duplica-scan/src/internal/duplicates"
 	"duplica-scan/src/internal/hash"
@@ -34,7 +35,7 @@ func main() {
 	a := app.New()
 	logoResource := fyne.NewStaticResource("duplica-scan-logo.png", appLogoPNG)
 	a.SetIcon(logoResource)
-	w := a.NewWindow("Duplica Scan")
+	w := a.NewWindow(fmt.Sprintf("Duplica Scan %s", buildinfo.Version))
 	w.SetIcon(logoResource)
 	w.Resize(fyne.NewSize(980, 760))
 
@@ -223,7 +224,7 @@ func main() {
 	)
 
 	content := container.NewBorder(
-		container.NewVBox(widget.NewLabel("Duplica Scan GUI"), dryRunCheck, form, runBtn, statusLabel, progress),
+		container.NewVBox(widget.NewLabel(fmt.Sprintf("Duplica Scan GUI %s", buildinfo.Version)), dryRunCheck, form, runBtn, statusLabel, progress),
 		nil,
 		nil,
 		nil,
