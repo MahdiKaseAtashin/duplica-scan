@@ -1,6 +1,6 @@
 # Duplica Scan
 
-Windows-friendly duplicate file scanner written in Go.
+Cross-platform duplicate file scanner written in Go (Windows, macOS, Linux).
 
 ## Features
 
@@ -10,6 +10,10 @@ Windows-friendly duplicate file scanner written in Go.
 - Stream file hashing in chunks to keep memory usage low.
 - Use size pre-filtering to avoid unnecessary hashing.
 - Show real-time scan and hash progress.
+- Hash files concurrently with configurable worker limit.
+- Export duplicate reports in CSV or JSON.
+- Exclude files by extension, directories, and size range.
+- Support automatic keep-newest/keep-oldest deletion selection.
 - Review duplicate groups and select files to delete.
 - Require explicit `YES` confirmation before deletion.
 - Support dry run mode.
@@ -30,36 +34,127 @@ duplica-scan/
   docs/                      # architecture notes and docs
 ```
 
-## Run on Windows
+## Cross-Platform Compatibility
+
+- Uses only Go standard library packages.
+- No operating system-specific APIs or external native dependencies.
+- Works on Windows, macOS, and Linux with the same flags and behavior.
+
+## Run
 
 ### Prerequisites
 
 - Go 1.22+ installed and available in `PATH`
 
-### Build
+### Build (Windows PowerShell)
 
 ```powershell
 go build -o .\bin\duplica-scan.exe .\src\cmd\duplica-scan
 ```
 
-### Scan (Dry Run)
+### Build (macOS/Linux Bash or Zsh)
 
-```powershell
-.\bin\duplica-scan.exe -path "D:\Data" -dry-run=true
+```bash
+mkdir -p ./bin
+go build -o ./bin/duplica-scan ./src/cmd/duplica-scan
 ```
 
-### Scan and Delete (Interactive)
+### Build GUI (Desktop App)
+
+```bash
+go build -tags gui -o ./bin/duplica-scan-gui ./src/cmd/duplica-scan-gui
+```
+
+### Scan (Dry Run) - Windows
 
 ```powershell
-.\bin\duplica-scan.exe -path "D:\Data" -dry-run=false
+.\bin\duplica-scan.exe -path "D:\Data" -dry-run=true -hash-workers=8
+```
+
+### Scan (Dry Run) - macOS/Linux
+
+```bash
+./bin/duplica-scan -path "/Users/you/Data" -dry-run=true -hash-workers=8
+```
+
+### Scan and Delete (Interactive) - Windows
+
+```powershell
+.\bin\duplica-scan.exe -path "D:\Data" -dry-run=false -hash-workers=8
+```
+
+### Scan and Delete (Interactive) - macOS/Linux
+
+```bash
+./bin/duplica-scan -path "/Users/you/Data" -dry-run=false -hash-workers=8
 ```
 
 When prompted:
 1. Enter comma-separated index numbers of files to delete in each group.
 2. Type `YES` to confirm deletion.
 
+### Worker Pool Tuning
+
+- `-hash-workers` controls concurrent hashing.
+- Default value is `runtime.NumCPU()`.
+- Use lower values to reduce CPU/I/O pressure on busy systems.
+
+### Export Reports
+
+- `-export-format` supports `csv` or `json`.
+- `-export-path` sets destination file path.
+- If `-export-path` is omitted, the tool writes to `./reports/duplicate-report-<timestamp>.<ext>`.
+
+Example:
+
+```bash
+./bin/duplica-scan -path "/Users/you/Data" -dry-run=true -hash-workers=8 -export-format=json
+```
+
+### Exclusion Filters
+
+- `-exclude-exts` skips extensions (comma-separated), e.g. `.log,.tmp` or `log,tmp`.
+- `-exclude-dirs` skips directory names (comma-separated), e.g. `node_modules,.git`.
+- `-min-size-bytes` includes only files at or above this size.
+- `-max-size-bytes` includes only files at or below this size.
+
+Example:
+
+```bash
+./bin/duplica-scan -path "/Users/you/Data" -exclude-exts=".log,.tmp" -exclude-dirs="node_modules,.git" -min-size-bytes=1024 -max-size-bytes=104857600
+```
+
+### Auto Selection Strategies
+
+- `-auto-select=newest` keeps the newest file in each duplicate group and selects the rest for deletion.
+- `-auto-select=oldest` keeps the oldest file in each duplicate group and selects the rest for deletion.
+- Safety confirmation is still required (`YES`) before deletion.
+
+Example:
+
+```bash
+./bin/duplica-scan -path "/Users/you/Data" -dry-run=false -auto-select=newest
+```
+
+## GUI Wrapper
+
+A small Fyne-based GUI is included for non-CLI users:
+
+- Choose scan path using a folder picker.
+- Configure hash workers, exclusions, min/max size.
+- Optionally export CSV/JSON report.
+- Optionally use auto-select strategy (`newest`/`oldest`) and confirm deletion via dialog.
+
+Run:
+
+```bash
+./bin/duplica-scan-gui
+```
+
+Note: the GUI command is gated behind the `gui` build tag so CLI-only environments can still run `go test ./...` without desktop OpenGL toolchain requirements.
+
 ## Development
 
-```powershell
+```bash
 go test ./...
 ```

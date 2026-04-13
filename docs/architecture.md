@@ -7,3 +7,8 @@ This project uses a layered design:
 - `src/internal/duplicates`: grouping and duplicate detection logic.
 - `src/internal/ui`: console prompts and progress rendering.
 - `src/cmd/duplica-scan`: CLI entrypoint and orchestration.
+- `src/cmd/duplica-scan-gui`: Fyne desktop wrapper for non-CLI users.
+
+## Portability
+
+The implementation intentionally uses only Go standard library APIs, keeping runtime behavior portable across Windows, macOS, and Linux without OS-specific dependencies.
