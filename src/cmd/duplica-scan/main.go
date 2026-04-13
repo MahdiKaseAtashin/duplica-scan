@@ -60,6 +60,12 @@ func main() {
 		log.Fatalf("invalid size filter: min-size-bytes (%d) cannot be greater than max-size-bytes (%d)", filterOptions.MinSizeBytes, filterOptions.MaxSizeBytes)
 	}
 
+	console.PrintStage("Stage 1/4: Scan Setup")
+	console.PrintSummaryLine(fmt.Sprintf("Path: %s", *rootPath))
+	console.PrintSummaryLine(fmt.Sprintf("Dry run: %t", *dryRun))
+	console.PrintSummaryLine(fmt.Sprintf("Hash workers: %d", *hashWorkers))
+
+	console.PrintStage("Stage 2/4: Discover and Hash")
 	fmt.Printf("Scanning: %s\n", *rootPath)
 	scanSummary, err := scanner.ScanWithOptions(*rootPath, console.OnScanProgress, filterOptions)
 	if err != nil {
@@ -72,7 +78,7 @@ func main() {
 		*hashWorkers = 1
 	}
 
-	fmt.Printf("Collected %d files. Hashing candidate files with %d worker(s)...\n", len(scanSummary.Files), *hashWorkers)
+	console.PrintSummaryLine(fmt.Sprintf("Collected %d files. Hashing candidate files...", len(scanSummary.Files)))
 	groups, hashErrors := duplicates.DetectWithOptions(
 		scanSummary.Files,
 		hash.SHA256File,
@@ -81,6 +87,7 @@ func main() {
 	)
 	fmt.Println()
 
+	console.PrintStage("Stage 3/4: Review Duplicates")
 	console.PrintDuplicateGroups(groups)
 
 	if strings.TrimSpace(*exportFormat) != "" {
@@ -95,7 +102,7 @@ func main() {
 		}
 	}
 
-	fmt.Println()
+	console.PrintStage("Stage 4/4: Action Summary")
 	fmt.Printf("Dry run mode: %t\n", *dryRun)
 	fmt.Printf("Duplicate groups found: %d\n", len(groups))
 	fmt.Printf("Scanner non-fatal errors: %d | Hash non-fatal errors: %d\n", len(scanSummary.Errors), len(hashErrors))

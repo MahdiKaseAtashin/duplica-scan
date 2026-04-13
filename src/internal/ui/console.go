@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,14 @@ func NewConsole() *Console {
 	return &Console{
 		reader: bufio.NewReader(os.Stdin),
 	}
+}
+
+func (c *Console) PrintStage(title string) {
+	fmt.Printf("\n== %s ==\n", title)
+}
+
+func (c *Console) PrintSummaryLine(text string) {
+	fmt.Println(text)
 }
 
 func (c *Console) OnScanProgress(p scanner.Progress) {
@@ -49,18 +58,30 @@ func (c *Console) OnHashProgress(p duplicates.Progress) {
 func (c *Console) PrintDuplicateGroups(groups []duplicates.Group) {
 	fmt.Println()
 	fmt.Println()
-	fmt.Println("Duplicate groups:")
+	fmt.Println("Duplicate Groups (sorted by reclaimable size):")
 	if len(groups) == 0 {
 		fmt.Println("- No duplicates found.")
 		return
 	}
 
-	for i, group := range groups {
-		fmt.Printf("\nGroup %d | size: %s | hash: %s\n", i+1, formatBytes(group.Size), group.Hash)
+	sorted := append([]duplicates.Group(nil), groups...)
+	sort.Slice(sorted, func(i, j int) bool {
+		leftReclaimable := int64(len(sorted[i].Files)-1) * sorted[i].Size
+		rightReclaimable := int64(len(sorted[j].Files)-1) * sorted[j].Size
+		if leftReclaimable == rightReclaimable {
+			return sorted[i].Size > sorted[j].Size
+		}
+		return leftReclaimable > rightReclaimable
+	})
+
+	for i, group := range sorted {
+		reclaimable := int64(len(group.Files)-1) * group.Size
+		fmt.Printf("\nGroup %d | files: %d | each: %s | reclaimable: %s | hash: %s\n", i+1, len(group.Files), formatBytes(group.Size), formatBytes(reclaimable), group.Hash)
 		for _, file := range group.Files {
 			fmt.Printf("  - name: %s\n", file.Name)
 			fmt.Printf("    path: %s\n", file.Path)
 			fmt.Printf("    size: %s\n", formatBytes(file.Size))
+			fmt.Printf("    modified: %s\n", file.ModifiedAt.Format(time.RFC3339))
 		}
 	}
 }
