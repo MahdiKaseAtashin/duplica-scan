@@ -262,6 +262,19 @@ func defaultExportPath(format string) string {
 	}
 }
 
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
 func parseExtensions(raw string) map[string]struct{} {
 	return parseCSVSet(raw, func(v string) string {
 		v = strings.ToLower(strings.TrimSpace(v))
@@ -322,6 +335,15 @@ func showResultsWindow(
 	win := a.NewWindow("Scan Results")
 	win.Resize(fyne.NewSize(960, 720))
 
+	totalFiles := 0
+	totalReclaimable := int64(0)
+	for _, g := range groups {
+		totalFiles += len(g.Files)
+		if len(g.Files) > 1 {
+			totalReclaimable += int64(len(g.Files)-1) * g.Size
+		}
+	}
+
 	selected := make(map[string]struct{}, 512)
 	for p := range initialSelection {
 		selected[p] = struct{}{}
@@ -329,6 +351,15 @@ func showResultsWindow(
 	checkByPath := make(map[string]*widget.Check, 512)
 
 	countLabel := widget.NewLabel("")
+	summaryLabel := widget.NewLabel(
+		fmt.Sprintf(
+			"Groups: %d | Candidate files: %d | Estimated reclaimable: %s | Mode: %s",
+			len(groups),
+			totalFiles,
+			formatBytes(totalReclaimable),
+			map[bool]string{true: "Dry Run", false: "Delete"}[dryRun],
+		),
+	)
 	updateCount := func() {
 		countLabel.SetText(fmt.Sprintf("Selected files: %d", len(selected)))
 	}
@@ -401,7 +432,11 @@ func showResultsWindow(
 		setSelection(selection.AutoSelect(groups, selection.StrategyOldest))
 	})
 
-	deleteBtn := widget.NewButton("Delete Selected", func() {
+	deleteLabel := "Delete Selected"
+	if dryRun {
+		deleteLabel = "Simulate Selected"
+	}
+	deleteBtn := widget.NewButton(deleteLabel, func() {
 		if len(selected) == 0 {
 			dialog.ShowInformation("No selection", "Select at least one file.", win)
 			return
@@ -461,7 +496,7 @@ func showResultsWindow(
 	updateCount()
 	toolbar := container.NewHBox(selectAllBtn, clearBtn, keepNewestBtn, keepOldestBtn, deleteBtn, exportCSVBtn, exportJSONBtn)
 	content := container.NewBorder(
-		container.NewVBox(widget.NewLabel("Review duplicates and choose actions"), countLabel, toolbar),
+		container.NewVBox(widget.NewLabel("Review duplicates and choose actions"), summaryLabel, countLabel, toolbar),
 		nil,
 		nil,
 		nil,
