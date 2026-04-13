@@ -79,6 +79,20 @@ Or run the helper script:
 .\scripts\build-gui-windows.ps1
 ```
 
+macOS helper script:
+
+```bash
+chmod +x ./scripts/build-gui-macos.sh
+./scripts/build-gui-macos.sh
+```
+
+Linux helper script:
+
+```bash
+chmod +x ./scripts/build-gui-linux.sh
+./scripts/build-gui-linux.sh
+```
+
 ### Scan (Dry Run) - Windows
 
 ```powershell
