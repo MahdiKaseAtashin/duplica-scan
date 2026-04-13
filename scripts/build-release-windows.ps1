@@ -11,6 +11,8 @@ if (-not (Get-Command gcc -ErrorAction SilentlyContinue)) {
     Write-Error "gcc not found in PATH. Add C:\msys64\mingw64\bin to PATH before release build."
 }
 
+& "$PSScriptRoot\embed-windows-icon.ps1"
+
 $env:CGO_ENABLED = "1"
 New-Item -ItemType Directory -Force -Path ".\bin\release" | Out-Null
 
