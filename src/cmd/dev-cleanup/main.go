@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"duplica-scan/src/internal/devcleanup"
+	"cleanpulse/src/internal/devcleanup"
 )
 
 func main() {
@@ -74,11 +74,11 @@ func main() {
 	if scheduleMode != "" && scheduleMode != "off" {
 		statePath := strings.TrimSpace(*scheduleState)
 		if statePath == "" {
-			statePath = ".duplica-scan/scheduler-state.json"
+			statePath = ".cleanpulse/scheduler-state.json"
 		}
 		reportDir := strings.TrimSpace(*scheduledReportDir)
 		if reportDir == "" {
-			reportDir = ".duplica-scan/reports"
+			reportDir = ".cleanpulse/reports"
 		}
 		kind := devcleanup.ScheduleKind(scheduleMode)
 		if kind != devcleanup.ScheduleWeekly && kind != devcleanup.ScheduleMonthly {

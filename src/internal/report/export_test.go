@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"duplica-scan/src/internal/duplicates"
-	"duplica-scan/src/internal/model"
+	"cleanpulse/src/internal/duplicates"
+	"cleanpulse/src/internal/model"
 )
 
 func TestExportCSV(t *testing.T) {

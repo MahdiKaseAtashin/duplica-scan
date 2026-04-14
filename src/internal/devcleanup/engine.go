@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"duplica-scan/src/internal/cleanup"
+	"cleanpulse/src/internal/cleanup"
 )
 
 func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {

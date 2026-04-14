@@ -6,7 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"duplica-scan/src/internal/model"
+	"cleanpulse/src/internal/model"
 )
 
 // Group represents files that share identical content.

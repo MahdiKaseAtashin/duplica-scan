@@ -90,7 +90,7 @@ func ResolveQuarantineDir(quarantineDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		baseDir = filepath.Join(home, ".duplica-scan", "quarantine")
+		baseDir = filepath.Join(home, ".cleanpulse", "quarantine")
 	}
 	if err := os.MkdirAll(baseDir, 0o755); err != nil {
 		return "", err

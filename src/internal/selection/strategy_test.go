@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"duplica-scan/src/internal/duplicates"
-	"duplica-scan/src/internal/model"
+	"cleanpulse/src/internal/duplicates"
+	"cleanpulse/src/internal/model"
 )
 
 func TestAutoSelectNewest(t *testing.T) {

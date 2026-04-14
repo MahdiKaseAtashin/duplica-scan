@@ -13,7 +13,7 @@ if (-not (Test-Path $ico)) {
 Set-Location $projectRoot
 
 $rsrcMod = "github.com/akavel/rsrc@v0.10.2"
-go run $rsrcMod -arch amd64 -ico $ico -o "src\cmd\duplica-scan-gui\rsrc.syso"
-go run $rsrcMod -arch amd64 -ico $ico -o "src\cmd\duplica-scan\rsrc.syso"
+go run $rsrcMod -arch amd64 -ico $ico -o "src\cmd\cleanpulse-gui\rsrc.syso"
+go run $rsrcMod -arch amd64 -ico $ico -o "src\cmd\cleanpulse\rsrc.syso"
 
-Write-Host "Embedded icon: src/cmd/duplica-scan-gui/rsrc.syso, src/cmd/duplica-scan/rsrc.syso"
+Write-Host "Embedded icon: src/cmd/cleanpulse-gui/rsrc.syso, src/cmd/cleanpulse/rsrc.syso"

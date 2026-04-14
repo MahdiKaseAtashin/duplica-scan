@@ -6,8 +6,8 @@ This project uses a layered design:
 - `src/internal/hash`: chunk-based hashing with low memory overhead.
 - `src/internal/duplicates`: grouping and duplicate detection logic.
 - `src/internal/ui`: console prompts and progress rendering.
-- `src/cmd/duplica-scan`: CLI entrypoint and orchestration.
-- `src/cmd/duplica-scan-gui`: Fyne desktop wrapper for non-CLI users.
+- `src/cmd/cleanpulse`: CLI entrypoint and orchestration.
+- `src/cmd/cleanpulse-gui`: Fyne desktop wrapper for non-CLI users.
 
 ## Portability
 

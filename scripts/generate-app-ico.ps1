@@ -1,10 +1,10 @@
-# Regenerates assets/windows/app.ico from assets/duplica-scan-logo.png (Windows .exe icon resource).
+# Regenerates assets/windows/app.ico from assets/cleanpulse-logo.png (Windows .exe icon resource).
 # Requires Windows PowerShell with System.Drawing (desktop .NET Framework).
 
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$src = Join-Path $projectRoot "assets\duplica-scan-logo.png"
+$src = Join-Path $projectRoot "assets\cleanpulse-logo.png"
 $dir = Join-Path $projectRoot "assets\windows"
 $dst = Join-Path $dir "app.ico"
 

@@ -1,4 +1,4 @@
-module duplica-scan
+module cleanpulse
 
 go 1.23.0
 

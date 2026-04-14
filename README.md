@@ -1,6 +1,6 @@
-# Duplica Scan
+# CleanPulse
 
-![Duplica Scan Logo](assets/duplica-scan-logo.png)
+![CleanPulse Logo](assets/cleanpulse-logo.png)
 
 Cross-platform duplicate file scanner written in Go (Windows, macOS, Linux).
 
@@ -23,9 +23,9 @@ Cross-platform duplicate file scanner written in Go (Windows, macOS, Linux).
 ## Project Structure
 
 ```text
-duplica-scan/
+cleanpulse/
   src/
-    cmd/duplica-scan/        # CLI entrypoint
+    cmd/cleanpulse/        # CLI entrypoint
     internal/model/          # shared data models
     internal/scanner/        # recursive file discovery
     internal/hash/           # chunk-based hashing
@@ -51,33 +51,33 @@ duplica-scan/
 ### Build (Windows PowerShell)
 
 ```powershell
-go build -o .\bin\duplica-scan.exe .\src\cmd\duplica-scan
+go build -o .\bin\cleanpulse.exe .\src\cmd\cleanpulse
 ```
 
 Build with version metadata:
 
 ```powershell
-go build -ldflags "-X duplica-scan/src/internal/buildinfo.Version=0.0.1-dev" -o .\bin\duplica-scan.exe .\src\cmd\duplica-scan
-.\bin\duplica-scan.exe -version
+go build -ldflags "-X cleanpulse/src/internal/buildinfo.Version=0.0.1-dev" -o .\bin\cleanpulse.exe .\src\cmd\cleanpulse
+.\bin\cleanpulse.exe -version
 ```
 
 ### Build (macOS/Linux Bash or Zsh)
 
 ```bash
 mkdir -p ./bin
-go build -o ./bin/duplica-scan ./src/cmd/duplica-scan
+go build -o ./bin/cleanpulse ./src/cmd/cleanpulse
 ```
 
 ### Build GUI (Desktop App)
 
 ```bash
-go build -tags gui -o ./bin/duplica-scan-gui ./src/cmd/duplica-scan-gui
+go build -tags gui -o ./bin/cleanpulse-gui ./src/cmd/cleanpulse-gui
 ```
 
 On Windows, build with `-H=windowsgui` to prevent a console window:
 
 ```powershell
-go build -tags gui -ldflags "-H=windowsgui" -o .\bin\duplica-scan-gui.exe .\src\cmd\duplica-scan-gui
+go build -tags gui -ldflags "-H=windowsgui" -o .\bin\cleanpulse-gui.exe .\src\cmd\cleanpulse-gui
 ```
 
 Or run the helper script:
@@ -89,8 +89,8 @@ Or run the helper script:
 Versioned release build (Windows CLI + GUI):
 
 ```powershell
-$env:DUPLICA_SCAN_VERSION = "0.0.1-dev"
-.\scripts\build-release-windows.ps1 -Version $env:DUPLICA_SCAN_VERSION
+$env:CLEANPULSE_VERSION = "0.0.1-dev"
+.\scripts\build-release-windows.ps1 -Version $env:CLEANPULSE_VERSION
 ```
 
 macOS helper script:
@@ -110,25 +110,25 @@ chmod +x ./scripts/build-gui-linux.sh
 ### Scan (Dry Run) - Windows
 
 ```powershell
-.\bin\duplica-scan.exe -path "D:\Data" -dry-run=true -hash-workers=8
+.\bin\cleanpulse.exe -path "D:\Data" -dry-run=true -hash-workers=8
 ```
 
 ### Scan (Dry Run) - macOS/Linux
 
 ```bash
-./bin/duplica-scan -path "/Users/you/Data" -dry-run=true -hash-workers=8
+./bin/cleanpulse -path "/Users/you/Data" -dry-run=true -hash-workers=8
 ```
 
 ### Scan and Delete (Interactive) - Windows
 
 ```powershell
-.\bin\duplica-scan.exe -path "D:\Data" -dry-run=false -hash-workers=8
+.\bin\cleanpulse.exe -path "D:\Data" -dry-run=false -hash-workers=8
 ```
 
 ### Scan and Delete (Interactive) - macOS/Linux
 
 ```bash
-./bin/duplica-scan -path "/Users/you/Data" -dry-run=false -hash-workers=8
+./bin/cleanpulse -path "/Users/you/Data" -dry-run=false -hash-workers=8
 ```
 
 When prompted:
@@ -150,7 +150,7 @@ When prompted:
 Example:
 
 ```bash
-./bin/duplica-scan -path "/Users/you/Data" -dry-run=true -hash-workers=8 -export-format=json
+./bin/cleanpulse -path "/Users/you/Data" -dry-run=true -hash-workers=8 -export-format=json
 ```
 
 ### Exclusion Filters
@@ -163,7 +163,7 @@ Example:
 Example:
 
 ```bash
-./bin/duplica-scan -path "/Users/you/Data" -exclude-exts=".log,.tmp" -exclude-dirs="node_modules,.git" -min-size-bytes=1024 -max-size-bytes=104857600
+./bin/cleanpulse -path "/Users/you/Data" -exclude-exts=".log,.tmp" -exclude-dirs="node_modules,.git" -min-size-bytes=1024 -max-size-bytes=104857600
 ```
 
 ### Auto Selection Strategies
@@ -175,7 +175,7 @@ Example:
 Example:
 
 ```bash
-./bin/duplica-scan -path "/Users/you/Data" -dry-run=false -auto-select=newest
+./bin/cleanpulse -path "/Users/you/Data" -dry-run=false -auto-select=newest
 ```
 
 ## GUI Wrapper
@@ -190,7 +190,7 @@ A small Fyne-based GUI is included for non-CLI users:
 Run:
 
 ```bash
-./bin/duplica-scan-gui
+./bin/cleanpulse-gui
 ```
 
 ### Windows GUI Prerequisites
@@ -205,7 +205,7 @@ Fyne desktop builds on Windows require CGO and a working C compiler toolchain.
 $env:PATH = "C:\msys64\mingw64\bin;$env:PATH"
 $env:CGO_ENABLED = "1"
 gcc --version
-go build -tags gui -o .\bin\duplica-scan-gui.exe .\src\cmd\duplica-scan-gui
+go build -tags gui -o .\bin\cleanpulse-gui.exe .\src\cmd\cleanpulse-gui
 ```
 
 If you see `build constraints exclude all Go files` for `go-gl`, verify `CGO_ENABLED=1` and that `gcc` resolves in `PATH`.
@@ -223,7 +223,7 @@ Example checks:
 ```bash
 go env CGO_ENABLED
 cc --version
-go build -tags gui -o ./bin/duplica-scan-gui ./src/cmd/duplica-scan-gui
+go build -tags gui -o ./bin/cleanpulse-gui ./src/cmd/cleanpulse-gui
 ```
 
 On Linux, if build errors mention missing X11/OpenGL/GLFW headers, install your distro's development packages for OpenGL and X11/Wayland (for example `libgl1-mesa-dev`, `xorg-dev`, or equivalents).

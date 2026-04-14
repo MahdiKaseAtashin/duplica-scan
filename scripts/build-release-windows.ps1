@@ -16,10 +16,10 @@ if (-not (Get-Command gcc -ErrorAction SilentlyContinue)) {
 $env:CGO_ENABLED = "1"
 New-Item -ItemType Directory -Force -Path ".\bin\release" | Out-Null
 
-$ldflagsCli = "-X duplica-scan/src/internal/buildinfo.Version=$Version"
-$ldflagsGui = "-H=windowsgui -X duplica-scan/src/internal/buildinfo.Version=$Version"
+$ldflagsCli = "-X cleanpulse/src/internal/buildinfo.Version=$Version"
+$ldflagsGui = "-H=windowsgui -X cleanpulse/src/internal/buildinfo.Version=$Version"
 
-go build -ldflags $ldflagsCli -o ".\bin\release\duplica-scan-$Version-windows-amd64.exe" .\src\cmd\duplica-scan
-go build -tags gui -ldflags $ldflagsGui -o ".\bin\release\duplica-scan-gui-$Version-windows-amd64.exe" .\src\cmd\duplica-scan-gui
+go build -ldflags $ldflagsCli -o ".\bin\release\cleanpulse-$Version-windows-amd64.exe" .\src\cmd\cleanpulse
+go build -tags gui -ldflags $ldflagsGui -o ".\bin\release\cleanpulse-gui-$Version-windows-amd64.exe" .\src\cmd\cleanpulse-gui
 
 Write-Host "Built release artifacts in .\bin\release for version $Version"

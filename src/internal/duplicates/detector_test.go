@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"duplica-scan/src/internal/model"
+	"cleanpulse/src/internal/model"
 )
 
 func TestDetectGroupsBySizeAndHash(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"duplica-scan/src/internal/duplicates"
-	"duplica-scan/src/internal/scanner"
+	"cleanpulse/src/internal/duplicates"
+	"cleanpulse/src/internal/scanner"
 )
 
 type Console struct {

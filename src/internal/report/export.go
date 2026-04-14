@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"duplica-scan/src/internal/duplicates"
+	"cleanpulse/src/internal/duplicates"
 )
 
 const (

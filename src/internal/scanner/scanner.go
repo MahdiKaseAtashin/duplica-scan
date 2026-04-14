@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"duplica-scan/src/internal/model"
+	"cleanpulse/src/internal/model"
 )
 
 // Progress provides live information while files are enumerated.
