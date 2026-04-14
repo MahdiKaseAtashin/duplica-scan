@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"duplica-scan/src/internal/cleanup"
 )
 
 func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {
@@ -472,22 +474,7 @@ func cleanupMatchedDirectoriesWithMode(paths []string, mode string, quarantineDi
 }
 
 func movePathToQuarantine(path string, quarantineDir string) (string, error) {
-	baseDir := strings.TrimSpace(quarantineDir)
-	if baseDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		baseDir = filepath.Join(home, ".duplica-scan", "quarantine")
-	}
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
-		return "", err
-	}
-	target := filepath.Join(baseDir, fmt.Sprintf("%d-%d-%s", time.Now().UnixNano(), os.Getpid(), filepath.Base(path)))
-	if err := os.Rename(path, target); err != nil {
-		return "", err
-	}
-	return target, nil
+	return cleanup.MovePathToQuarantine(path, quarantineDir, "cleanup")
 }
 
 func discoverPatternTargets(roots []string, names []string, minAge time.Duration) ([]string, int64, error) {

@@ -632,6 +632,29 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject)
 	cleanupDeleteModeSelect.SetSelected("Delete permanently")
 	cleanupQuarantineEntry := widget.NewEntry()
 	cleanupQuarantineEntry.SetPlaceHolder("Optional safety backup folder")
+	undoDaysEntry := widget.NewEntry()
+	undoDaysEntry.SetText("7")
+	restoreUndoBtn := widget.NewButton("Restore from safety backup", func() {
+		days, err := parseInt(undoDaysEntry.Text, 7)
+		if err != nil || days <= 0 {
+			dialog.ShowInformation("Invalid undo window", "Undo window days must be a positive number.", parent)
+			return
+		}
+		openQuarantineRestoreWindow(parent, strings.TrimSpace(cleanupQuarantineEntry.Text), days)
+	})
+	pruneUndoBtn := widget.NewButton("Delete expired backups", func() {
+		days, err := parseInt(undoDaysEntry.Text, 7)
+		if err != nil || days <= 0 {
+			dialog.ShowInformation("Invalid undo window", "Undo window days must be a positive number.", parent)
+			return
+		}
+		removed, pruneErr := cleanup.PruneExpiredQuarantine(strings.TrimSpace(cleanupQuarantineEntry.Text), days)
+		if pruneErr != nil {
+			dialog.ShowError(pruneErr, parent)
+			return
+		}
+		dialog.ShowInformation("Undo window cleanup", fmt.Sprintf("Removed %d expired backup items.", removed), parent)
+	})
 	targetPathEntry := widget.NewEntry()
 	targetPathEntry.SetPlaceHolder("Optional: choose a folder to focus cleanup")
 	targetBrowseBtn := widget.NewButton("Choose Folder", func() {
@@ -810,6 +833,9 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject)
 		widget.NewFormItem("Scheduled reports folder", scheduledReportDirEntry),
 		widget.NewFormItem("Delete mode", cleanupDeleteModeSelect),
 		widget.NewFormItem("Safety backup folder", cleanupQuarantineEntry),
+		widget.NewFormItem("Undo window days", undoDaysEntry),
+		widget.NewFormItem("Restore backups", restoreUndoBtn),
+		widget.NewFormItem("Prune expired backups", pruneUndoBtn),
 	)
 	cleanupSettingsTabs := container.NewAppTabs(
 		container.NewTabItem("General", container.NewPadded(cleanupGeneralForm)),
@@ -1175,6 +1201,86 @@ func buildHorizontalBar(name string, value int64, max int64, barColor color.Colo
 	right := container.NewGridWrap(fyne.NewSize(90, 24), rightLabel)
 	barCell := container.NewGridWrap(fyne.NewSize(width, 24), container.NewCenter(bar))
 	return container.NewBorder(nil, nil, left, right, barCell)
+}
+
+func openQuarantineRestoreWindow(parent fyne.Window, quarantineDir string, days int) {
+	entries, err := cleanup.ListQuarantineEntries(quarantineDir, days)
+	if err != nil {
+		dialog.ShowError(err, parent)
+		return
+	}
+	if len(entries) == 0 {
+		dialog.ShowInformation("No backups found", fmt.Sprintf("No backup items found in the last %d days.", days), parent)
+		return
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].CreatedAt.After(entries[j].CreatedAt)
+	})
+
+	restoreWindow := fyne.CurrentApp().NewWindow("Restore from Safety Backup")
+	restoreWindow.Resize(fyne.NewSize(900, 500))
+
+	selected := 0
+	list := widget.NewList(
+		func() int { return len(entries) },
+		func() fyne.CanvasObject { return widget.NewLabel("item") },
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			e := entries[id]
+			label := obj.(*widget.Label)
+			label.SetText(fmt.Sprintf("%s | %s", e.CreatedAt.Format("2006-01-02 15:04"), e.OriginalPath))
+		},
+	)
+	list.OnSelected = func(id widget.ListItemID) {
+		selected = id
+	}
+
+	detail := widget.NewMultiLineEntry()
+	detail.Disable()
+	updateDetail := func() {
+		e := entries[selected]
+		detail.SetText(
+			"Created: " + e.CreatedAt.Format(time.RFC1123) + "\n" +
+				"Source: " + e.Source + "\n" +
+				"Original path: " + e.OriginalPath + "\n" +
+				"Backup path: " + e.BackupPath,
+		)
+	}
+	updateDetail()
+	list.Select(0)
+
+	restoreBtn := widget.NewButton("Restore selected item", func() {
+		e := entries[selected]
+		if err := cleanup.RestoreQuarantineEntry(e); err != nil {
+			dialog.ShowError(err, restoreWindow)
+			return
+		}
+		dialog.ShowInformation("Restored", "Item restored successfully.", restoreWindow)
+		entries = append(entries[:selected], entries[selected+1:]...)
+		if len(entries) == 0 {
+			restoreWindow.Close()
+			return
+		}
+		if selected >= len(entries) {
+			selected = len(entries) - 1
+		}
+		list.Refresh()
+		list.Select(selected)
+		updateDetail()
+	})
+
+	list.OnSelected = func(id widget.ListItemID) {
+		selected = id
+		updateDetail()
+	}
+
+	restoreWindow.SetContent(container.NewBorder(
+		widget.NewLabel(fmt.Sprintf("Backups available in last %d days", days)),
+		container.NewHBox(layout.NewSpacer(), restoreBtn),
+		container.NewVScroll(list),
+		nil,
+		container.NewVScroll(detail),
+	))
+	restoreWindow.Show()
 }
 
 func parsePatternRootsArg(raw string) map[string][]string {
