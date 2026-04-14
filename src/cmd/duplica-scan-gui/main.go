@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"duplica-scan/src/internal/buildinfo"
@@ -481,24 +482,59 @@ func main() {
 	var homeTabBtn *widget.Button
 	var duplicateTabBtn *widget.Button
 	var cleanupTabBtn *widget.Button
+	var transitionSeq int64
+	animateSwitch := func(target fyne.CanvasObject) {
+		seq := atomic.AddInt64(&transitionSeq, 1)
+		go func() {
+			const steps = 8
+			const frame = 18 * time.Millisecond
+			for i := 0; i < steps; i++ {
+				if atomic.LoadInt64(&transitionSeq) != seq {
+					return
+				}
+				pad := float32((steps - i) * 3)
+				fyne.Do(func() {
+					spacer := canvas.NewRectangle(color.Transparent)
+					spacer.SetMinSize(fyne.NewSize(1, pad))
+					content.Objects = []fyne.CanvasObject{
+						container.NewBorder(
+							container.NewVBox(spacer),
+							nil,
+							nil,
+							nil,
+							target,
+						),
+					}
+					content.Refresh()
+				})
+				time.Sleep(frame)
+			}
+			if atomic.LoadInt64(&transitionSeq) != seq {
+				return
+			}
+			fyne.Do(func() {
+				content.Objects = []fyne.CanvasObject{target}
+				content.Refresh()
+			})
+		}()
+	}
 	updateTab := func(tab string) {
 		if tab == "cleanup" {
-			content.Objects = []fyne.CanvasObject{cleanupView}
+			animateSwitch(cleanupView)
 			homeTabBtn.Importance = widget.MediumImportance
 			duplicateTabBtn.Importance = widget.MediumImportance
 			cleanupTabBtn.Importance = widget.HighImportance
 		} else if tab == "duplicate" {
-			content.Objects = []fyne.CanvasObject{scanView}
+			animateSwitch(scanView)
 			homeTabBtn.Importance = widget.MediumImportance
 			duplicateTabBtn.Importance = widget.HighImportance
 			cleanupTabBtn.Importance = widget.MediumImportance
 		} else {
-			content.Objects = []fyne.CanvasObject{homeView}
+			animateSwitch(homeView)
 			homeTabBtn.Importance = widget.HighImportance
 			duplicateTabBtn.Importance = widget.MediumImportance
 			cleanupTabBtn.Importance = widget.MediumImportance
 		}
-		content.Refresh()
 		homeTabBtn.Refresh()
 		duplicateTabBtn.Refresh()
 		cleanupTabBtn.Refresh()
