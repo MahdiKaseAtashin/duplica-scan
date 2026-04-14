@@ -45,6 +45,7 @@ type TaskKind string
 const (
 	TaskKindPath    TaskKind = "path"
 	TaskKindCommand TaskKind = "command"
+	TaskKindPattern TaskKind = "pattern"
 )
 
 type PathTask struct {
@@ -59,14 +60,22 @@ type CommandTask struct {
 }
 
 type CleanupTask struct {
-	ID          string
-	Kind        TaskKind
-	Name        string
-	Description string
-	Category    string
-	Risk        RiskLevel
-	PathTask    *PathTask
-	CommandTask *CommandTask
+	ID           string
+	Kind         TaskKind
+	Name         string
+	Description  string
+	Category     string
+	Risk         RiskLevel
+	ProcessHints []string
+	PathTask     *PathTask
+	CommandTask  *CommandTask
+	PatternTask  *PatternTask
+}
+
+type PatternTask struct {
+	Roots          []string
+	DirectoryNames []string
+	MinAge         time.Duration
 }
 
 type Provider interface {
@@ -87,10 +96,12 @@ type Config struct {
 	Verbose           bool
 	Parallelism       int
 	MinAge            time.Duration
+	ProcessAware      bool
 	IncludeCategories map[string]struct{}
 	ExcludeIDs        map[string]struct{}
 	IncludeIDs        map[string]struct{}
 	PathOverrides     map[string][]string
+	PatternRoots      map[string][]string
 }
 
 type Prompt interface {

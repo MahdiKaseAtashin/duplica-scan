@@ -10,10 +10,12 @@ type FileConfig struct {
 	MaxRisk           string              `json:"max_risk"`
 	Parallelism       int                 `json:"parallelism"`
 	MinAgeHours       int                 `json:"min_age_hours"`
+	ProcessAware      *bool               `json:"process_aware"`
 	IncludeCategories []string            `json:"include_categories"`
 	IncludeIDs        []string            `json:"include_ids"`
 	ExcludeIDs        []string            `json:"exclude_ids"`
 	PathOverrides     map[string][]string `json:"path_overrides"`
+	PatternRoots      map[string][]string `json:"pattern_roots"`
 }
 
 func LoadFileConfig(path string) (FileConfig, error) {

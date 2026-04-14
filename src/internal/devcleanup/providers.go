@@ -39,6 +39,7 @@ func BuiltinProviders(env Environment) []Provider {
 		pathTask("docker-desktop-cache", "Docker desktop cache", "container", RiskModerate, filepath.Join(home, ".docker", "buildx")),
 		pathTask("browser-cache-chrome", "Chrome cache", "browser", RiskModerate, filepath.Join(home, ".cache", "google-chrome")),
 		pathTask("crash-dumps", "Crash dumps", "logs", RiskModerate, filepath.Join(home, ".local", "share", "CrashDumps")),
+		patternTask("project-build-artifacts", "Project build artifacts", "build-artifact", RiskAggressive, []string{"bin", "obj", "dist", "target"}),
 		commandTask("dotnet-locals", ".NET CLI cache cleanup", "package-manager", RiskSafe, "dotnet", "nuget", "locals", "all", "--clear"),
 		commandTask("npm-clean-force", "npm force clean", "package-manager", RiskModerate, "npm", "cache", "clean", "--force"),
 		commandTask("docker-prune", "Docker prune (images/volumes)", "container", RiskAggressive, "docker", "system", "prune", "-a", "--volumes", "-f"),
@@ -72,13 +73,21 @@ func BuiltinProviders(env Environment) []Provider {
 }
 
 func pathTask(id, name, category string, risk RiskLevel, path string) CleanupTask {
+	hints := []string{}
+	switch category {
+	case "ide":
+		hints = []string{"code", "devenv", "idea64", "rider64", "studio64"}
+	case "browser":
+		hints = []string{"chrome", "msedge", "firefox", "brave"}
+	}
 	return CleanupTask{
-		ID:          id,
-		Kind:        TaskKindPath,
-		Name:        name,
-		Category:    category,
-		Description: "cleanup path contents",
-		Risk:        risk,
+		ID:           id,
+		Kind:         TaskKindPath,
+		Name:         name,
+		Category:     category,
+		Description:  "cleanup path contents",
+		Risk:         risk,
+		ProcessHints: hints,
 		PathTask: &PathTask{
 			Path:            path,
 			RemoveDirectory: false,
@@ -97,6 +106,21 @@ func commandTask(id, name, category string, risk RiskLevel, executable string, a
 		CommandTask: &CommandTask{
 			Executable: executable,
 			Args:       args,
+		},
+	}
+}
+
+func patternTask(id, name, category string, risk RiskLevel, directoryNames []string) CleanupTask {
+	return CleanupTask{
+		ID:          id,
+		Kind:        TaskKindPattern,
+		Name:        name,
+		Category:    category,
+		Description: "cleanup matched artifact directories under explicit roots",
+		Risk:        risk,
+		PatternTask: &PatternTask{
+			Roots:          []string{},
+			DirectoryNames: directoryNames,
 		},
 	}
 }

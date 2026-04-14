@@ -4,6 +4,9 @@
   "min_age_hours": 48,
   "include_categories": ["package-manager", "ide", "os-temp"],
   "exclude_ids": ["browser-cache-chrome"],
+  "pattern_roots": {
+    "project-build-artifacts": ["D:/Projects", "D:/Workspaces"]
+  },
   "path_overrides": {
     "npm-cache": ["D:/dev/cache/npm"],
     "vscode-cache-win": ["D:/portable/vscode/Cache"]

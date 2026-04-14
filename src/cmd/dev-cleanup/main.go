@@ -23,6 +23,7 @@ func main() {
 	includeCategories := flag.String("include-categories", "", "Comma-separated categories to include")
 	includeIDs := flag.String("include-ids", "", "Comma-separated cleanup IDs to include")
 	excludeIDs := flag.String("exclude-ids", "", "Comma-separated cleanup IDs to exclude")
+	patternRoots := flag.String("pattern-roots", "", "Pattern roots as task=path1|path2,task2=path3")
 	configPath := flag.String("config", "", "Optional JSON config file")
 	reportPath := flag.String("report", "", "Optional JSON output report path")
 	flag.Parse()
@@ -38,6 +39,7 @@ func main() {
 		IncludeIDs:        csvSet(*includeIDs),
 		ExcludeIDs:        csvSet(*excludeIDs),
 		PathOverrides:     map[string][]string{},
+		PatternRoots:      parsePatternRoots(*patternRoots),
 	}
 
 	if *configPath != "" {
@@ -92,6 +94,9 @@ func mergeConfig(cfg *devcleanup.Config, fileCfg devcleanup.FileConfig) {
 	if len(fileCfg.PathOverrides) > 0 {
 		cfg.PathOverrides = fileCfg.PathOverrides
 	}
+	if len(fileCfg.PatternRoots) > 0 {
+		cfg.PatternRoots = fileCfg.PatternRoots
+	}
 }
 
 func environment() (devcleanup.Environment, error) {
@@ -123,4 +128,39 @@ func csvSliceSet(values []string) map[string]struct{} {
 		out[clean] = struct{}{}
 	}
 	return out
+}
+
+func parsePatternRoots(raw string) map[string][]string {
+	result := make(map[string][]string)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return result
+	}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		segments := strings.SplitN(part, "=", 2)
+		if len(segments) != 2 {
+			continue
+		}
+		id := strings.TrimSpace(strings.ToLower(segments[0]))
+		if id == "" {
+			continue
+		}
+		paths := make([]string, 0, 4)
+		for _, path := range strings.Split(segments[1], "|") {
+			path = strings.TrimSpace(path)
+			if path == "" {
+				continue
+			}
+			paths = append(paths, path)
+		}
+		if len(paths) == 0 {
+			continue
+		}
+		result[id] = paths
+	}
+	return result
 }

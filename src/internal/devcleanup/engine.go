@@ -26,7 +26,6 @@ func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {
 	if cfg.MaxRisk == 0 {
 		cfg.MaxRisk = RiskSafe
 	}
-
 	tasks := e.collectTasks(env, cfg)
 	plan := e.plan(ctx, tasks, cfg)
 	results := e.execute(ctx, plan, cfg)
@@ -118,6 +117,16 @@ func (e *Engine) collectTasks(env Environment, cfg Config) []CleanupTask {
 			}
 			continue
 		}
+		if roots, ok := cfg.PatternRoots[task.ID]; ok && task.PatternTask != nil {
+			cloned := task
+			cloned.PatternTask = &PatternTask{
+				Roots:          roots,
+				DirectoryNames: task.PatternTask.DirectoryNames,
+				MinAge:         task.PatternTask.MinAge,
+			}
+			filtered = append(filtered, cloned)
+			continue
+		}
 		filtered = append(filtered, task)
 	}
 	return filtered
@@ -198,6 +207,29 @@ func evaluateTask(task CleanupTask, cfg Config) PlanItem {
 		item.Exists = true
 		item.EstimatedSize, item.Err = directorySize(task.PathTask.Path, cfg.MinAge)
 		return item
+	case TaskKindPattern:
+		if task.PatternTask == nil || len(task.PatternTask.Roots) == 0 {
+			item.SkippedReason = "no-pattern-roots-configured"
+			return item
+		}
+		targets, size, err := discoverPatternTargets(task.PatternTask.Roots, task.PatternTask.DirectoryNames, cfg.MinAge)
+		if err != nil {
+			item.Err = err
+			return item
+		}
+		if len(targets) == 0 {
+			item.SkippedReason = "no-pattern-matches"
+			return item
+		}
+		item.Exists = true
+		item.EstimatedSize = size
+		paths := make([]string, 0, len(targets))
+		for _, target := range targets {
+			paths = append(paths, target)
+		}
+		item.Task.PathTask = &PathTask{Path: "", RemoveDirectory: false}
+		item.Task.Description = strings.Join(paths, ";")
+		return item
 	default:
 		item.SkippedReason = "unknown-task-kind"
 		return item
@@ -234,6 +266,10 @@ func (e *Engine) execute(ctx context.Context, plan []PlanItem, cfg Config) []Exe
 		switch item.Task.Kind {
 		case TaskKindPath:
 			results[i].DeletedItems, err = cleanupDirectory(item.Task.PathTask.Path, cfg.MinAge)
+			results[i].DeletedBytes = item.EstimatedSize
+		case TaskKindPattern:
+			paths := strings.Split(item.Task.Description, ";")
+			results[i].DeletedItems, err = cleanupMatchedDirectories(paths)
 			results[i].DeletedBytes = item.EstimatedSize
 		case TaskKindCommand:
 			err = runCommand(ctx, item.Task.CommandTask.Executable, item.Task.CommandTask.Args...)
@@ -291,6 +327,65 @@ func cleanupDirectory(root string, minAge time.Duration) (int, error) {
 		removed++
 	}
 	return removed, nil
+}
+
+func cleanupMatchedDirectories(paths []string) (int, error) {
+	removed := 0
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if !isSafeCleanupPath(path) {
+			return removed, fmt.Errorf("unsafe cleanup path rejected: %s", path)
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return removed, err
+		}
+		removed++
+	}
+	return removed, nil
+}
+
+func discoverPatternTargets(roots []string, names []string, minAge time.Duration) ([]string, int64, error) {
+	nameSet := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		nameSet[strings.ToLower(strings.TrimSpace(name))] = struct{}{}
+	}
+	matches := make([]string, 0, 64)
+	var total int64
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if !d.IsDir() {
+				return nil
+			}
+			if _, ok := nameSet[strings.ToLower(d.Name())]; !ok {
+				return nil
+			}
+			size, sizeErr := directorySize(path, minAge)
+			if sizeErr != nil {
+				return nil
+			}
+			matches = append(matches, path)
+			total += size
+			return filepath.SkipDir
+		})
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	return matches, total, nil
 }
 
 func isSafeCleanupPath(path string) bool {

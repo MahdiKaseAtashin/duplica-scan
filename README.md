@@ -254,6 +254,7 @@ Common flags:
 - `-include-categories=package-manager,ide`
 - `-include-ids=<task-id1,task-id2>`
 - `-exclude-ids=<task-id1,task-id2>`
+- `-pattern-roots=project-build-artifacts=D:/Projects|D:/Workspaces`
 - `-config=./cleanup-config.json`
 
 See `docs/dev-cleanup.md` for architecture and strategy guidance.

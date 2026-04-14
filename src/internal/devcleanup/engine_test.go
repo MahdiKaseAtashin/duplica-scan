@@ -1,6 +1,10 @@
 package devcleanup
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestParseRiskLevel(t *testing.T) {
 	if got := ParseRiskLevel("safe"); got != RiskSafe {
@@ -32,5 +36,32 @@ func TestIsSafeCleanupPath(t *testing.T) {
 		if got := isSafeCleanupPath(tc.path); got != tc.safe {
 			t.Fatalf("path %q expected safe=%t got=%t", tc.path, tc.safe, got)
 		}
+	}
+}
+
+func TestDiscoverPatternTargets(t *testing.T) {
+	root := t.TempDir()
+	matchDir := filepath.Join(root, "service-a", "bin")
+	otherDir := filepath.Join(root, "service-a", "logs")
+	if err := os.MkdirAll(matchDir, 0o755); err != nil {
+		t.Fatalf("mkdir match: %v", err)
+	}
+	if err := os.MkdirAll(otherDir, 0o755); err != nil {
+		t.Fatalf("mkdir other: %v", err)
+	}
+	filePath := filepath.Join(matchDir, "artifact.dll")
+	if err := os.WriteFile(filePath, []byte("abc"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	paths, size, err := discoverPatternTargets([]string{root}, []string{"bin", "obj"}, 0)
+	if err != nil {
+		t.Fatalf("discover pattern: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 path match, got %d", len(paths))
+	}
+	if size <= 0 {
+		t.Fatalf("expected size > 0, got %d", size)
 	}
 }

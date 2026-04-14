@@ -11,6 +11,7 @@
 - Plugin/provider layer: `src/internal/devcleanup/providers.go`
   - `Provider` interface returns `CleanupTask` definitions.
   - Builtin provider can be complemented by more providers.
+- Pattern tasks support controlled artifact cleanup (`bin/obj/dist/target`) only under explicit roots.
 - IO layer: `src/internal/devcleanup/io.go`
   - Console confirmation and JSON reporting.
 
@@ -43,6 +44,15 @@ Default max risk is `safe`.
 - Provider decides OS-specific paths.
 - Command tasks rely on command discovery (`exec.LookPath`) before execution.
 - Future: split providers to files with build tags if OS specialization grows.
+
+## Pattern Cleanup Tasks
+
+`project-build-artifacts` is an aggressive pattern task that only runs when roots are explicitly configured via:
+
+- CLI: `-pattern-roots "project-build-artifacts=D:/Projects|D:/Workspaces"`
+- Config: `pattern_roots.project-build-artifacts`
+
+This prevents broad accidental scans and keeps artifact deletion bounded to user-approved roots.
 
 ## Extensibility
 
