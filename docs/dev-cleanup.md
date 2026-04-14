@@ -28,6 +28,7 @@ Default max risk is `safe`.
 - Refuse root-level cleanup paths (`/`, `C:\`, `.`).
 - Clean directory contents, not the base folder itself.
 - `min-age-hours` avoids deleting recently touched files.
+- Process-aware skip for IDE/browser tasks if matching applications are currently running.
 - Interactive confirmations unless `-yes=true`.
 - Dry-run enabled by default.
 - Command tasks are skipped when executable is not installed.

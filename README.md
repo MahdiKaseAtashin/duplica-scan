@@ -251,6 +251,7 @@ Common flags:
 - `-yes=true` to skip interactive confirmations
 - `-parallelism=<n>`
 - `-min-age-hours=<n>`
+- `-process-aware=true|false`
 - `-include-categories=package-manager,ide`
 - `-include-ids=<task-id1,task-id2>`
 - `-exclude-ids=<task-id1,task-id2>`

@@ -65,3 +65,18 @@ func TestDiscoverPatternTargets(t *testing.T) {
 		t.Fatalf("expected size > 0, got %d", size)
 	}
 }
+
+func TestActiveProcessForTask(t *testing.T) {
+	task := CleanupTask{
+		ID:           "vscode-cache",
+		Kind:         TaskKindPath,
+		ProcessHints: []string{"code", "devenv"},
+	}
+	processes := map[string]struct{}{
+		"code.exe":     {},
+		"explorer.exe": {},
+	}
+	if got := activeProcessForTask(task, processes); got != "code" {
+		t.Fatalf("expected process hint code, got %q", got)
+	}
+}

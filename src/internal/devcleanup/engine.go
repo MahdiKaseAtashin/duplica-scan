@@ -27,7 +27,7 @@ func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {
 		cfg.MaxRisk = RiskSafe
 	}
 	tasks := e.collectTasks(env, cfg)
-	plan := e.plan(ctx, tasks, cfg)
+	plan := e.plan(ctx, tasks, cfg, runningProcesses())
 	results := e.execute(ctx, plan, cfg)
 
 	report := RunReport{
@@ -132,7 +132,7 @@ func (e *Engine) collectTasks(env Environment, cfg Config) []CleanupTask {
 	return filtered
 }
 
-func (e *Engine) plan(ctx context.Context, tasks []CleanupTask, cfg Config) []PlanItem {
+func (e *Engine) plan(ctx context.Context, tasks []CleanupTask, cfg Config, processList map[string]struct{}) []PlanItem {
 	type payload struct {
 		index int
 		item  PlanItem
@@ -159,7 +159,7 @@ func (e *Engine) plan(ctx context.Context, tasks []CleanupTask, cfg Config) []Pl
 					return
 				default:
 				}
-				resultCh <- payload{index: idx, item: evaluateTask(tasks[idx], cfg)}
+				resultCh <- payload{index: idx, item: evaluateTask(tasks[idx], cfg, processList)}
 			}
 		}()
 	}
@@ -176,8 +176,14 @@ func (e *Engine) plan(ctx context.Context, tasks []CleanupTask, cfg Config) []Pl
 	return out
 }
 
-func evaluateTask(task CleanupTask, cfg Config) PlanItem {
+func evaluateTask(task CleanupTask, cfg Config, processList map[string]struct{}) PlanItem {
 	item := PlanItem{Task: task}
+	if cfg.ProcessAware && len(task.ProcessHints) > 0 {
+		if process := activeProcessForTask(task, processList); process != "" {
+			item.SkippedReason = "process-running-" + process
+			return item
+		}
+	}
 	switch task.Kind {
 	case TaskKindCommand:
 		if _, err := exec.LookPath(task.CommandTask.Executable); err != nil {

@@ -20,6 +20,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Verbose logging")
 	parallelism := flag.Int("parallelism", runtime.NumCPU(), "Parallel workers for size planning")
 	minAgeHours := flag.Int("min-age-hours", 24, "Delete only entries older than this age")
+	processAware := flag.Bool("process-aware", true, "Skip IDE/browser cache tasks when related apps are running")
 	includeCategories := flag.String("include-categories", "", "Comma-separated categories to include")
 	includeIDs := flag.String("include-ids", "", "Comma-separated cleanup IDs to include")
 	excludeIDs := flag.String("exclude-ids", "", "Comma-separated cleanup IDs to exclude")
@@ -35,6 +36,7 @@ func main() {
 		Verbose:           *verbose,
 		Parallelism:       *parallelism,
 		MinAge:            time.Duration(*minAgeHours) * time.Hour,
+		ProcessAware:      *processAware,
 		IncludeCategories: csvSet(*includeCategories),
 		IncludeIDs:        csvSet(*includeIDs),
 		ExcludeIDs:        csvSet(*excludeIDs),
@@ -93,6 +95,9 @@ func mergeConfig(cfg *devcleanup.Config, fileCfg devcleanup.FileConfig) {
 	}
 	if len(fileCfg.PathOverrides) > 0 {
 		cfg.PathOverrides = fileCfg.PathOverrides
+	}
+	if fileCfg.ProcessAware != nil {
+		cfg.ProcessAware = *fileCfg.ProcessAware
 	}
 	if len(fileCfg.PatternRoots) > 0 {
 		cfg.PatternRoots = fileCfg.PatternRoots

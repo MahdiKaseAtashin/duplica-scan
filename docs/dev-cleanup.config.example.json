@@ -2,6 +2,7 @@
   "max_risk": "moderate",
   "parallelism": 8,
   "min_age_hours": 48,
+  "process_aware": true,
   "include_categories": ["package-manager", "ide", "os-temp"],
   "exclude_ids": ["browser-cache-chrome"],
   "pattern_roots": {
