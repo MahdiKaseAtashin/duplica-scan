@@ -90,18 +90,19 @@ type Environment struct {
 }
 
 type Config struct {
-	MaxRisk           RiskLevel
-	DryRun            bool
-	AssumeYes         bool
-	Verbose           bool
-	Parallelism       int
-	MinAge            time.Duration
-	ProcessAware      bool
-	IncludeCategories map[string]struct{}
-	ExcludeIDs        map[string]struct{}
-	IncludeIDs        map[string]struct{}
-	PathOverrides     map[string][]string
-	PatternRoots      map[string][]string
+	MaxRisk             RiskLevel
+	DryRun              bool
+	AssumeYes           bool
+	Verbose             bool
+	DisableCommandTasks bool
+	Parallelism         int
+	MinAge              time.Duration
+	ProcessAware        bool
+	IncludeCategories   map[string]struct{}
+	ExcludeIDs          map[string]struct{}
+	IncludeIDs          map[string]struct{}
+	PathOverrides       map[string][]string
+	PatternRoots        map[string][]string
 }
 
 type Prompt interface {
@@ -141,6 +142,7 @@ type RunReport struct {
 	Skipped        int                 `json:"skipped"`
 	Attempted      int                 `json:"attempted"`
 	ReclaimedBytes int64               `json:"reclaimed_bytes"`
+	FreedByVolume  map[string]int64    `json:"freed_by_volume,omitempty"`
 	Duration       time.Duration       `json:"duration"`
 	Results        []ResultReportEntry `json:"results"`
 }

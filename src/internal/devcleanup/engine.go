@@ -31,13 +31,14 @@ func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {
 	results := e.execute(ctx, plan, cfg)
 
 	report := RunReport{
-		GeneratedAt: time.Now(),
-		OS:          env.OS,
-		DryRun:      cfg.DryRun,
-		MaxRisk:     cfg.MaxRisk.String(),
-		Parallelism: cfg.Parallelism,
-		Planned:     len(plan),
-		Duration:    time.Since(start),
+		GeneratedAt:   time.Now(),
+		OS:            env.OS,
+		DryRun:        cfg.DryRun,
+		MaxRisk:       cfg.MaxRisk.String(),
+		Parallelism:   cfg.Parallelism,
+		Planned:       len(plan),
+		FreedByVolume: map[string]int64{},
+		Duration:      time.Since(start),
 	}
 
 	for _, item := range plan {
@@ -49,7 +50,13 @@ func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {
 		if result.Attempted {
 			report.Attempted++
 		}
-		report.ReclaimedBytes += result.DeletedBytes
+		// Reclaimed bytes should only include successful actions.
+		if result.Attempted && result.Err == nil {
+			report.ReclaimedBytes += result.DeletedBytes
+			for _, volume := range volumesForTask(result.Task) {
+				report.FreedByVolume[volume] += result.DeletedBytes
+			}
+		}
 		entry := ResultReportEntry{
 			ID:           result.Task.ID,
 			Name:         result.Task.Name,
@@ -66,6 +73,42 @@ func (e *Engine) Run(ctx context.Context, cfg Config) (RunReport, error) {
 		report.Results = append(report.Results, entry)
 	}
 	return report, nil
+}
+
+func volumesForTask(task CleanupTask) []string {
+	set := make(map[string]struct{})
+	addVolume := func(path string) {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return
+		}
+		volume := filepath.VolumeName(path)
+		if volume == "" {
+			volume = "/"
+		}
+		set[volume] = struct{}{}
+	}
+	if task.PathTask != nil {
+		addVolume(task.PathTask.Path)
+	}
+	if task.PatternTask != nil {
+		for _, root := range task.PatternTask.Roots {
+			addVolume(root)
+		}
+	}
+	if task.Kind == TaskKindPattern && strings.TrimSpace(task.Description) != "" {
+		for _, path := range strings.Split(task.Description, ";") {
+			addVolume(path)
+		}
+	}
+	if len(set) == 0 {
+		set["unknown"] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for volume := range set {
+		out = append(out, volume)
+	}
+	return out
 }
 
 func collectEnvironment() (Environment, error) {
@@ -88,6 +131,9 @@ func (e *Engine) collectTasks(env Environment, cfg Config) []CleanupTask {
 
 	var filtered []CleanupTask
 	for _, task := range tasks {
+		if task.Kind == TaskKindCommand && cfg.DisableCommandTasks {
+			continue
+		}
 		if task.Risk > cfg.MaxRisk {
 			continue
 		}
@@ -279,6 +325,10 @@ func (e *Engine) execute(ctx context.Context, plan []PlanItem, cfg Config) []Exe
 			results[i].DeletedBytes = item.EstimatedSize
 		case TaskKindCommand:
 			err = runCommand(ctx, item.Task.CommandTask.Executable, item.Task.CommandTask.Args...)
+		}
+		if err != nil {
+			// Never report reclaimed bytes for failed operations.
+			results[i].DeletedBytes = 0
 		}
 		results[i].Err = err
 		results[i].Duration = time.Since(start)
