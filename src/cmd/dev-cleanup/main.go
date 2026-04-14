@@ -30,6 +30,10 @@ func main() {
 	configPath := flag.String("config", "", "Optional JSON config file")
 	reportPath := flag.String("report", "", "Optional output report path")
 	reportFormat := flag.String("report-format", "json", "Report format: json|md|html")
+	schedule := flag.String("schedule", "off", "Schedule mode: off|weekly|monthly")
+	scheduleState := flag.String("schedule-state", "", "Path to scheduler state file")
+	scheduledProfile := flag.String("scheduled-profile", "quick-safe", "Scheduled built-in profile name")
+	scheduledReportDir := flag.String("scheduled-report-dir", "", "Directory for auto-exported scheduled reports")
 	flag.Parse()
 
 	cfg := devcleanup.Config{
@@ -66,6 +70,34 @@ func main() {
 		devcleanup.Logger{Out: os.Stdout, Verbose: cfg.Verbose},
 		devcleanup.NewConsolePrompt(os.Stdin, os.Stdout),
 	)
+	scheduleMode := strings.TrimSpace(strings.ToLower(*schedule))
+	if scheduleMode != "" && scheduleMode != "off" {
+		statePath := strings.TrimSpace(*scheduleState)
+		if statePath == "" {
+			statePath = ".duplica-scan/scheduler-state.json"
+		}
+		reportDir := strings.TrimSpace(*scheduledReportDir)
+		if reportDir == "" {
+			reportDir = ".duplica-scan/reports"
+		}
+		kind := devcleanup.ScheduleKind(scheduleMode)
+		if kind != devcleanup.ScheduleWeekly && kind != devcleanup.ScheduleMonthly {
+			log.Fatalf("invalid schedule: %s (allowed: off|weekly|monthly)", scheduleMode)
+		}
+		profile := devcleanup.BuiltinSafeProfile(strings.TrimSpace(strings.ToLower(*scheduledProfile)))
+		report, ran, err := devcleanup.RunScheduledCleanup(context.Background(), engine, profile, kind, statePath, reportDir)
+		if err != nil {
+			log.Fatalf("scheduled cleanup failed: %v", err)
+		}
+		if !ran {
+			fmt.Printf("Scheduled cleanup skipped (%s): already executed in current window\n", scheduleMode)
+			return
+		}
+		devcleanup.PrintRunSummary(os.Stdout, report)
+		fmt.Printf("Scheduled run completed. Reports saved in %s\n", reportDir)
+		return
+	}
+
 	report, err := engine.Run(context.Background(), cfg)
 	if err != nil {
 		log.Fatalf("cleanup run failed: %v", err)
