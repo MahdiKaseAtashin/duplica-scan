@@ -465,9 +465,6 @@ func main() {
 	statTiles := []fyne.CanvasObject{cacheTile, tempTile, dupTile, cleanupTile}
 	statsGrid := container.NewMax()
 	healthTitleLabel := widget.NewLabel(localize(healthState.Accessibility.Language, "system_health"))
-	refreshDashBtn := widget.NewButtonWithIcon("Refresh Dashboard", theme.ViewRefreshIcon(), func() {
-		refreshHealthCard()
-	})
 	healthHeader := container.NewBorder(
 		nil,
 		nil,
@@ -585,7 +582,6 @@ func main() {
 			duplicateTabBtn.SetText(localize(healthState.Accessibility.Language, "duplicate_tab"))
 			cleanupTabBtn.SetText(localize(healthState.Accessibility.Language, "cleanup_tab"))
 			healthTitleLabel.SetText(localize(healthState.Accessibility.Language, "system_health"))
-			refreshDashBtn.SetText(localize(healthState.Accessibility.Language, "refresh_dashboard"))
 			homeToDuplicateBtn.SetText(localize(healthState.Accessibility.Language, "duplicate_tab"))
 			homeToCleanupBtn.SetText(localize(healthState.Accessibility.Language, "cleanup_tab"))
 			cacheSizeLabel.SetText(localize(healthState.Accessibility.Language, "cache_size") + ": ...")
@@ -614,7 +610,6 @@ func main() {
 			cleanupTabBtn,
 			widget.NewSeparator(),
 			settingsBtn,
-			refreshDashBtn,
 		)),
 	)
 	homeToDuplicateBtn.OnTapped = func() { updateTab("duplicate") }
@@ -897,7 +892,6 @@ func localize(lang, key string) string {
 			"duplicate_tab": "Duplicate Files",
 			"cleanup_tab":   "Cleanup",
 			"system_health": "System Health",
-			"refresh_dashboard": "Refresh Dashboard",
 			"cache_size":    "Cache size",
 			"temp_size":     "Temp size",
 			"last_dups":     "Last duplicate groups",
@@ -915,7 +909,6 @@ func localize(lang, key string) string {
 			"duplicate_tab": "فایل‌های تکراری",
 			"cleanup_tab":   "پاکسازی",
 			"system_health": "وضعیت سیستم",
-			"refresh_dashboard": "بروزرسانی داشبورد",
 			"cache_size":    "حجم کش",
 			"temp_size":     "حجم فایل‌های موقت",
 			"last_dups":     "آخرین تعداد گروه‌های تکراری",
