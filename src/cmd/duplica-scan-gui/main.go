@@ -603,6 +603,10 @@ func main() {
 		})
 	})
 	settingsBtn.Importance = widget.MediumImportance
+	navButtonSize := fyne.NewSize(52, 52)
+	makeSquareNavItem := func(btn *widget.Button) fyne.CanvasObject {
+		return container.NewGridWrap(navButtonSize, btn)
+	}
 
 	sidebarBg := canvas.NewRectangle(color.RGBA{R: 21, G: 24, B: 31, A: 255})
 	sidebarBg.SetMinSize(fyne.NewSize(220, 10))
@@ -611,11 +615,11 @@ func main() {
 		container.NewPadded(container.NewVBox(
 			widget.NewLabel("Duplica Scan"),
 			widget.NewSeparator(),
-			homeTabBtn,
-			duplicateTabBtn,
-			cleanupTabBtn,
+			makeSquareNavItem(homeTabBtn),
+			makeSquareNavItem(duplicateTabBtn),
+			makeSquareNavItem(cleanupTabBtn),
 			widget.NewSeparator(),
-			settingsBtn,
+			makeSquareNavItem(settingsBtn),
 		)),
 	)
 	homeToDuplicateBtn.OnTapped = func() { updateTab("duplicate") }
