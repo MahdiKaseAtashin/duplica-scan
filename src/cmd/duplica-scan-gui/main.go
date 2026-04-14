@@ -458,19 +458,27 @@ func main() {
 		}
 		homeToCleanupBtn.Refresh()
 	}
-	healthCard := container.NewBorder(
+	cacheTile := buildStatTile(localize(healthState.Accessibility.Language, "cache_size"), cacheSizeLabel, color.RGBA{R: 41, G: 98, B: 255, A: 255})
+	tempTile := buildStatTile(localize(healthState.Accessibility.Language, "temp_size"), tempSizeLabel, color.RGBA{R: 0, G: 137, B: 123, A: 255})
+	dupTile := buildStatTile(localize(healthState.Accessibility.Language, "last_dups"), dupCountLabel, color.RGBA{R: 156, G: 39, B: 176, A: 255})
+	cleanupTile := buildStatTile(localize(healthState.Accessibility.Language, "last_cleanup"), lastCleanupLabel, color.RGBA{R: 255, G: 152, B: 0, A: 255})
+	statTiles := []fyne.CanvasObject{cacheTile, tempTile, dupTile, cleanupTile}
+	statsGrid := container.NewMax()
+	healthTitleLabel := widget.NewLabel(localize(healthState.Accessibility.Language, "system_health"))
+	refreshDashBtn := widget.NewButtonWithIcon("Refresh Dashboard", theme.ViewRefreshIcon(), func() {
+		refreshHealthCard()
+	})
+	healthHeader := container.NewBorder(
 		nil,
-		widget.NewSeparator(),
 		nil,
-		widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
-			refreshHealthCard()
-		}),
-		container.NewVBox(
-			widget.NewLabel(localize(healthState.Accessibility.Language, "system_health")),
-			container.NewGridWithColumns(2, cacheSizeLabel, tempSizeLabel),
-			container.NewGridWithColumns(2, dupCountLabel, lastCleanupLabel),
-			healthStatusLabel,
-		),
+		healthTitleLabel,
+		widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { refreshHealthCard() }),
+		nil,
+	)
+	healthCard := container.NewVBox(
+		healthHeader,
+		statsGrid,
+		healthStatusLabel,
 	)
 	heroSection := container.NewBorder(
 		container.NewVBox(heroLiftSpacer),
@@ -497,10 +505,7 @@ func main() {
 		nil,
 		nil,
 		nil,
-		container.NewVBox(
-			heroSection,
-			healthCard,
-		),
+		container.NewVScroll(container.NewVBox(heroSection, healthCard)),
 	)
 	content = container.NewMax(homeView)
 
@@ -579,6 +584,8 @@ func main() {
 			homeTabBtn.SetText(localize(healthState.Accessibility.Language, "home_tab"))
 			duplicateTabBtn.SetText(localize(healthState.Accessibility.Language, "duplicate_tab"))
 			cleanupTabBtn.SetText(localize(healthState.Accessibility.Language, "cleanup_tab"))
+			healthTitleLabel.SetText(localize(healthState.Accessibility.Language, "system_health"))
+			refreshDashBtn.SetText(localize(healthState.Accessibility.Language, "refresh_dashboard"))
 			homeToDuplicateBtn.SetText(localize(healthState.Accessibility.Language, "duplicate_tab"))
 			homeToCleanupBtn.SetText(localize(healthState.Accessibility.Language, "cleanup_tab"))
 			cacheSizeLabel.SetText(localize(healthState.Accessibility.Language, "cache_size") + ": ...")
@@ -595,15 +602,40 @@ func main() {
 	})
 	settingsBtn.Importance = widget.MediumImportance
 
-	topRow := container.NewBorder(
-		nil,
-		widget.NewSeparator(),
-		container.NewHBox(homeTabBtn, duplicateTabBtn, cleanupTabBtn),
-		settingsBtn,
-		nil,
+	sidebarBg := canvas.NewRectangle(color.RGBA{R: 21, G: 24, B: 31, A: 255})
+	sidebarBg.SetMinSize(fyne.NewSize(220, 10))
+	sidebar := container.NewStack(
+		sidebarBg,
+		container.NewPadded(container.NewVBox(
+			widget.NewLabel("Duplica Scan"),
+			widget.NewSeparator(),
+			homeTabBtn,
+			duplicateTabBtn,
+			cleanupTabBtn,
+			widget.NewSeparator(),
+			settingsBtn,
+			refreshDashBtn,
+		)),
 	)
 	homeToDuplicateBtn.OnTapped = func() { updateTab("duplicate") }
 	homeToCleanupBtn.OnTapped = func() { updateTab("cleanup") }
+	applyResponsiveDashboard := func(width float32) {
+		columns := 2
+		if width < 1450 {
+			columns = 1
+			heroSubtitle.SetText("Clean safely, remove duplicates, and keep your computer healthy.")
+		} else {
+			heroSubtitle.SetText("Clean safely, remove duplicates, and keep your computer healthy.")
+		}
+		statsGrid.Objects = []fyne.CanvasObject{container.NewGridWithColumns(columns, statTiles...)}
+		statsGrid.Refresh()
+		sidebarWidth := float32(230)
+		if width < 1400 {
+			sidebarWidth = 205
+		}
+		sidebarBg.SetMinSize(fyne.NewSize(sidebarWidth, 10))
+		sidebarBg.Refresh()
+	}
 	if strings.EqualFold(strings.TrimSpace(healthState.Accessibility.StartPage), "Cleanup") {
 		updateTab("cleanup")
 	} else if strings.EqualFold(strings.TrimSpace(healthState.Accessibility.StartPage), "Duplicate Files") {
@@ -628,7 +660,23 @@ func main() {
 			refreshHealthCard()
 		})
 	}
-	w.SetContent(container.NewBorder(topRow, nil, nil, nil, content))
+	w.SetContent(container.NewBorder(nil, nil, sidebar, nil, content))
+	applyResponsiveDashboard(w.Canvas().Size().Width)
+	go func() {
+		lastWidth := float32(0)
+		ticker := time.NewTicker(300 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			width := w.Canvas().Size().Width
+			if math.Abs(float64(width-lastWidth)) < 10 {
+				continue
+			}
+			lastWidth = width
+			fyne.Do(func() {
+				applyResponsiveDashboard(width)
+			})
+		}
+	}()
 	refreshHealthCard()
 	w.ShowAndRun()
 }
@@ -849,6 +897,7 @@ func localize(lang, key string) string {
 			"duplicate_tab": "Duplicate Files",
 			"cleanup_tab":   "Cleanup",
 			"system_health": "System Health",
+			"refresh_dashboard": "Refresh Dashboard",
 			"cache_size":    "Cache size",
 			"temp_size":     "Temp size",
 			"last_dups":     "Last duplicate groups",
@@ -866,6 +915,7 @@ func localize(lang, key string) string {
 			"duplicate_tab": "فایل‌های تکراری",
 			"cleanup_tab":   "پاکسازی",
 			"system_health": "وضعیت سیستم",
+			"refresh_dashboard": "بروزرسانی داشبورد",
 			"cache_size":    "حجم کش",
 			"temp_size":     "حجم فایل‌های موقت",
 			"last_dups":     "آخرین تعداد گروه‌های تکراری",
@@ -1058,6 +1108,24 @@ func startCardLiftAnimation(spacer *canvas.Rectangle, bg *canvas.Rectangle) {
 			})
 		}
 	}()
+}
+
+func buildStatTile(title string, value *widget.Label, accent color.Color) fyne.CanvasObject {
+	bg := canvas.NewRectangle(color.RGBA{R: 31, G: 36, B: 46, A: 255})
+	bg.CornerRadius = 8
+	bar := canvas.NewRectangle(accent)
+	bar.SetMinSize(fyne.NewSize(4, 54))
+	titleLabel := widget.NewLabel(title)
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+	value.Alignment = fyne.TextAlignLeading
+	body := container.NewBorder(
+		nil,
+		nil,
+		bar,
+		nil,
+		container.NewPadded(container.NewVBox(titleLabel, value)),
+	)
+	return container.NewStack(bg, body)
 }
 
 func parseExtensions(raw string) map[string]struct{} {
