@@ -31,6 +31,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -51,33 +52,46 @@ func main() {
 	var scanView fyne.CanvasObject
 	var content *fyne.Container
 	healthState, _ := loadGUIHealthState()
+	if strings.TrimSpace(healthState.Accessibility.Language) == "" {
+		healthState.Accessibility.Language = "en"
+	}
+	if strings.TrimSpace(healthState.Accessibility.TextScale) == "" {
+		healthState.Accessibility.TextScale = "normal"
+	}
+	if strings.TrimSpace(healthState.Accessibility.ThemeMode) == "" {
+		healthState.Accessibility.ThemeMode = "system"
+	}
+	if strings.TrimSpace(healthState.Accessibility.StartPage) == "" {
+		healthState.Accessibility.StartPage = "Duplicate Files"
+	}
+	applyAccessibilityTheme(a, healthState.Accessibility)
 
-	cacheSizeLabel := widget.NewLabel("Cache size: calculating...")
-	tempSizeLabel := widget.NewLabel("Temp size: calculating...")
-	dupCountLabel := widget.NewLabel(fmt.Sprintf("Last duplicate groups: %d", healthState.LastDuplicateGroups))
-	lastCleanupLabel := widget.NewLabel("Last cleanup: never")
+	cacheSizeLabel := widget.NewLabel(localize(healthState.Accessibility.Language, "cache_size") + ": ...")
+	tempSizeLabel := widget.NewLabel(localize(healthState.Accessibility.Language, "temp_size") + ": ...")
+	dupCountLabel := widget.NewLabel(fmt.Sprintf("%s: %d", localize(healthState.Accessibility.Language, "last_dups"), healthState.LastDuplicateGroups))
+	lastCleanupLabel := widget.NewLabel(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + localize(healthState.Accessibility.Language, "never"))
 	if !healthState.LastCleanupAt.IsZero() {
-		lastCleanupLabel.SetText("Last cleanup: " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
+		lastCleanupLabel.SetText(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
 	}
 	healthStatusLabel := widget.NewLabel("")
 
 	refreshHealthCard := func() {
-		healthStatusLabel.SetText("Refreshing system health...")
+		healthStatusLabel.SetText("Refreshing...")
 		go func() {
 			cacheBytes, tempBytes, err := estimateSystemHealth()
 			fyne.Do(func() {
 				if err != nil {
 					healthStatusLabel.SetText("Health refresh had partial errors: " + err.Error())
 				} else {
-					healthStatusLabel.SetText("System health updated")
+					healthStatusLabel.SetText("Updated")
 				}
-				cacheSizeLabel.SetText("Cache size: " + formatBytes(cacheBytes))
-				tempSizeLabel.SetText("Temp size: " + formatBytes(tempBytes))
-				dupCountLabel.SetText(fmt.Sprintf("Last duplicate groups: %d", healthState.LastDuplicateGroups))
+				cacheSizeLabel.SetText(localize(healthState.Accessibility.Language, "cache_size") + ": " + formatBytes(cacheBytes))
+				tempSizeLabel.SetText(localize(healthState.Accessibility.Language, "temp_size") + ": " + formatBytes(tempBytes))
+				dupCountLabel.SetText(fmt.Sprintf("%s: %d", localize(healthState.Accessibility.Language, "last_dups"), healthState.LastDuplicateGroups))
 				if healthState.LastCleanupAt.IsZero() {
-					lastCleanupLabel.SetText("Last cleanup: never")
+					lastCleanupLabel.SetText(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + localize(healthState.Accessibility.Language, "never"))
 				} else {
-					lastCleanupLabel.SetText("Last cleanup: " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
+					lastCleanupLabel.SetText(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
 				}
 			})
 		}()
@@ -402,8 +416,8 @@ func main() {
 		healthState.LastCleanupAt = time.Now()
 		_ = saveGUIHealthState(healthState)
 		fyne.Do(func() {
-			dupCountLabel.SetText(fmt.Sprintf("Last duplicate groups: %d", healthState.LastDuplicateGroups))
-			lastCleanupLabel.SetText("Last cleanup: " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
+			dupCountLabel.SetText(fmt.Sprintf("%s: %d", localize(healthState.Accessibility.Language, "last_dups"), healthState.LastDuplicateGroups))
+			lastCleanupLabel.SetText(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
 		})
 		_ = report
 		refreshHealthCard()
@@ -426,14 +440,28 @@ func main() {
 		duplicateTabBtn.Refresh()
 		cleanupTabBtn.Refresh()
 	}
-	duplicateTabBtn = widget.NewButton("Duplicate Files", func() {
+	duplicateTabBtn = widget.NewButton(localize(healthState.Accessibility.Language, "duplicate_tab"), func() {
 		updateTab("duplicate")
 	})
-	cleanupTabBtn = widget.NewButton("Cleanup", func() {
+	cleanupTabBtn = widget.NewButton(localize(healthState.Accessibility.Language, "cleanup_tab"), func() {
 		updateTab("cleanup")
 	})
 	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
-		openSettingsHub(duplicateSettingsTabs, cleanupSettingsTabs, updateTab)
+		openSettingsHub(duplicateSettingsTabs, cleanupSettingsTabs, updateTab, &healthState.Accessibility, func() {
+			applyAccessibilityTheme(a, healthState.Accessibility)
+			duplicateTabBtn.SetText(localize(healthState.Accessibility.Language, "duplicate_tab"))
+			cleanupTabBtn.SetText(localize(healthState.Accessibility.Language, "cleanup_tab"))
+			cacheSizeLabel.SetText(localize(healthState.Accessibility.Language, "cache_size") + ": ...")
+			tempSizeLabel.SetText(localize(healthState.Accessibility.Language, "temp_size") + ": ...")
+			dupCountLabel.SetText(fmt.Sprintf("%s: %d", localize(healthState.Accessibility.Language, "last_dups"), healthState.LastDuplicateGroups))
+			if healthState.LastCleanupAt.IsZero() {
+				lastCleanupLabel.SetText(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + localize(healthState.Accessibility.Language, "never"))
+			} else {
+				lastCleanupLabel.SetText(localize(healthState.Accessibility.Language, "last_cleanup") + ": " + healthState.LastCleanupAt.Local().Format("2006-01-02 15:04"))
+			}
+			_ = saveGUIHealthState(healthState)
+			refreshHealthCard()
+		})
 	})
 	settingsBtn.Importance = widget.MediumImportance
 
@@ -452,13 +480,31 @@ func main() {
 			refreshHealthCard()
 		}),
 		container.NewVBox(
-			widget.NewLabel("System Health"),
+			widget.NewLabel(localize(healthState.Accessibility.Language, "system_health")),
 			container.NewGridWithColumns(2, cacheSizeLabel, tempSizeLabel),
 			container.NewGridWithColumns(2, dupCountLabel, lastCleanupLabel),
 			healthStatusLabel,
 		),
 	)
-	updateTab("duplicate")
+	if strings.EqualFold(strings.TrimSpace(healthState.Accessibility.StartPage), "Cleanup") {
+		updateTab("cleanup")
+	} else {
+		updateTab("duplicate")
+	}
+	if canvas := w.Canvas(); canvas != nil {
+		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.Key1, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
+			updateTab("duplicate")
+		})
+		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.Key2, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
+			updateTab("cleanup")
+		})
+		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
+			settingsBtn.OnTapped()
+		})
+		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyR, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
+			refreshHealthCard()
+		})
+	}
 	w.SetContent(container.NewBorder(container.NewVBox(topRow, healthCard), nil, nil, nil, content))
 	refreshHealthCard()
 	w.ShowAndRun()
@@ -494,45 +540,55 @@ func duplicateDeleteModeFromLabel(label string) cleanup.DeletionMode {
 	}
 }
 
-func openSettingsHub(duplicateSettings fyne.CanvasObject, cleanupSettings fyne.CanvasObject, updateTab func(string)) {
-	hub := fyne.CurrentApp().NewWindow("Settings")
+func openSettingsHub(
+	duplicateSettings fyne.CanvasObject,
+	cleanupSettings fyne.CanvasObject,
+	updateTab func(string),
+	prefs *accessibilityPrefs,
+	onPrefsChanged func(),
+) {
+	hub := fyne.CurrentApp().NewWindow(localize(prefs.Language, "settings"))
 	hub.Resize(fyne.NewSize(900, 620))
 
 	landingSelect := widget.NewSelect([]string{"Duplicate Files", "Cleanup"}, nil)
-	landingSelect.SetSelected("Duplicate Files")
-	themeSelect := widget.NewSelect([]string{"System", "Dark", "Light"}, nil)
-	themeSelect.SetSelected("System")
-	applyGeneralBtn := widget.NewButton("Save Changes", func() {
-		switch themeSelect.Selected {
-		case "Dark":
-			fyne.CurrentApp().Settings().SetTheme(theme.DarkTheme())
-		case "Light":
-			fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
-		default:
-			// Keep default/system theme behavior by re-applying current app theme.
-			fyne.CurrentApp().Settings().SetTheme(theme.DefaultTheme())
-		}
+	landingSelect.SetSelected(prefs.StartPage)
+	themeSelect := widget.NewSelect([]string{"system", "dark", "light", "high-contrast-dark", "high-contrast-light"}, nil)
+	themeSelect.SetSelected(prefs.ThemeMode)
+	languageSelect := widget.NewSelect([]string{"en", "fa"}, nil)
+	languageSelect.SetSelected(prefs.Language)
+	textSizeSelect := widget.NewSelect([]string{"normal", "large"}, nil)
+	textSizeSelect.SetSelected(prefs.TextScale)
+	applyGeneralBtn := widget.NewButton(localize(prefs.Language, "save_changes"), func() {
+		prefs.ThemeMode = strings.TrimSpace(themeSelect.Selected)
+		prefs.Language = strings.TrimSpace(languageSelect.Selected)
+		prefs.TextScale = strings.TrimSpace(textSizeSelect.Selected)
+		prefs.StartPage = strings.TrimSpace(landingSelect.Selected)
 		if landingSelect.Selected == "Cleanup" {
 			updateTab("cleanup")
 		} else {
 			updateTab("duplicate")
 		}
+		if onPrefsChanged != nil {
+			onPrefsChanged()
+		}
 	})
 	generalForm := widget.NewForm(
-		widget.NewFormItem("Open this page first", landingSelect),
-		widget.NewFormItem("Theme", themeSelect),
+		widget.NewFormItem(localize(prefs.Language, "home_page"), landingSelect),
+		widget.NewFormItem(localize(prefs.Language, "theme"), themeSelect),
+		widget.NewFormItem(localize(prefs.Language, "language"), languageSelect),
+		widget.NewFormItem(localize(prefs.Language, "text_size"), textSizeSelect),
 	)
 	generalSection := container.NewVBox(
-		widget.NewLabel("General Settings"),
-		widget.NewLabel("Change basic app behavior and look."),
+		widget.NewLabel(localize(prefs.Language, "settings")),
+		widget.NewLabel("Accessibility and localization"),
 		generalForm,
 		container.NewHBox(layout.NewSpacer(), applyGeneralBtn),
 	)
 
 	rootTabs := container.NewAppTabs(
-		container.NewTabItem("General", container.NewPadded(generalSection)),
-		container.NewTabItem("Duplicate Files", duplicateSettings),
-		container.NewTabItem("Cleanup", cleanupSettings),
+		container.NewTabItem(localize(prefs.Language, "settings"), container.NewPadded(generalSection)),
+		container.NewTabItem(localize(prefs.Language, "duplicate_tab"), duplicateSettings),
+		container.NewTabItem(localize(prefs.Language, "cleanup_tab"), cleanupSettings),
 	)
 	rootTabs.SetTabLocation(container.TabLocationTop)
 
@@ -579,10 +635,135 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
+type accessibilityPrefs struct {
+	Language   string `json:"language"`
+	TextScale  string `json:"text_scale"`
+	ThemeMode  string `json:"theme_mode"`
+	StartPage  string `json:"start_page"`
+}
+
+type scaledTheme struct {
+	base  fyne.Theme
+	scale float32
+}
+
+func (t scaledTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color { return t.base.Color(n, v) }
+func (t scaledTheme) Font(s fyne.TextStyle) fyne.Resource                          { return t.base.Font(s) }
+func (t scaledTheme) Icon(n fyne.ThemeIconName) fyne.Resource                      { return t.base.Icon(n) }
+func (t scaledTheme) Size(n fyne.ThemeSizeName) float32                            { return t.base.Size(n) * t.scale }
+
+type highContrastTheme struct {
+	base fyne.Theme
+	dark bool
+}
+
+func (t highContrastTheme) Color(n fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
+	switch n {
+	case theme.ColorNameBackground:
+		if t.dark {
+			return color.RGBA{R: 12, G: 12, B: 12, A: 255}
+		}
+		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	case theme.ColorNameForeground:
+		if t.dark {
+			return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+		}
+		return color.RGBA{R: 0, G: 0, B: 0, A: 255}
+	case theme.ColorNameButton:
+		if t.dark {
+			return color.RGBA{R: 38, G: 38, B: 38, A: 255}
+		}
+		return color.RGBA{R: 230, G: 230, B: 230, A: 255}
+	case theme.ColorNamePrimary:
+		return color.RGBA{R: 255, G: 193, B: 7, A: 255}
+	default:
+		variant := theme.VariantDark
+		if !t.dark {
+			variant = theme.VariantLight
+		}
+		return t.base.Color(n, variant)
+	}
+}
+
+func (t highContrastTheme) Font(s fyne.TextStyle) fyne.Resource     { return t.base.Font(s) }
+func (t highContrastTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return t.base.Icon(n) }
+func (t highContrastTheme) Size(n fyne.ThemeSizeName) float32       { return t.base.Size(n) }
+
+func localize(lang, key string) string {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	texts := map[string]map[string]string{
+		"en": {
+			"duplicate_tab": "Duplicate Files",
+			"cleanup_tab":   "Cleanup",
+			"system_health": "System Health",
+			"cache_size":    "Cache size",
+			"temp_size":     "Temp size",
+			"last_dups":     "Last duplicate groups",
+			"last_cleanup":  "Last cleanup",
+			"never":         "never",
+			"settings":      "Settings",
+			"save_changes":  "Save Changes",
+			"theme":         "Theme",
+			"language":      "Language",
+			"text_size":     "Text size",
+			"home_page":     "Open this page first",
+		},
+		"fa": {
+			"duplicate_tab": "فایل‌های تکراری",
+			"cleanup_tab":   "پاکسازی",
+			"system_health": "وضعیت سیستم",
+			"cache_size":    "حجم کش",
+			"temp_size":     "حجم فایل‌های موقت",
+			"last_dups":     "آخرین تعداد گروه‌های تکراری",
+			"last_cleanup":  "آخرین پاکسازی",
+			"never":         "هرگز",
+			"settings":      "تنظیمات",
+			"save_changes":  "ذخیره تغییرات",
+			"theme":         "تم",
+			"language":      "زبان",
+			"text_size":     "اندازه متن",
+			"home_page":     "صفحه شروع پیش‌فرض",
+		},
+	}
+	if _, ok := texts[lang]; !ok {
+		lang = "en"
+	}
+	if v, ok := texts[lang][key]; ok {
+		return v
+	}
+	return key
+}
+
+func applyAccessibilityTheme(a fyne.App, prefs accessibilityPrefs) {
+	mode := strings.ToLower(strings.TrimSpace(prefs.ThemeMode))
+	scale := float32(1.0)
+	if strings.EqualFold(strings.TrimSpace(prefs.TextScale), "large") {
+		scale = 1.25
+	}
+	var base fyne.Theme
+	switch mode {
+	case "dark":
+		base = theme.DarkTheme()
+	case "light":
+		base = theme.LightTheme()
+	case "high-contrast-dark":
+		base = highContrastTheme{base: theme.DarkTheme(), dark: true}
+	case "high-contrast-light":
+		base = highContrastTheme{base: theme.LightTheme(), dark: false}
+	default:
+		base = theme.DefaultTheme()
+	}
+	if scale != 1 {
+		base = scaledTheme{base: base, scale: scale}
+	}
+	a.Settings().SetTheme(base)
+}
+
 type guiHealthState struct {
 	LastCleanupAt       time.Time `json:"last_cleanup_at"`
 	LastDuplicateAt     time.Time `json:"last_duplicate_at"`
 	LastDuplicateGroups int       `json:"last_duplicate_groups"`
+	Accessibility       accessibilityPrefs `json:"accessibility"`
 }
 
 func guiHealthStatePath() (string, error) {
