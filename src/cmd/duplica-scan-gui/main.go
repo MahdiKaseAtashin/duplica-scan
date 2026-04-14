@@ -620,6 +620,14 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject)
 	reportFormat.SetSelected("none")
 	reportPath := widget.NewEntry()
 	reportPath.SetPlaceHolder("Where to save the cleanup report")
+	scheduleModeSelect := widget.NewSelect([]string{"off", "weekly", "monthly"}, nil)
+	scheduleModeSelect.SetSelected("off")
+	scheduledProfileSelect := widget.NewSelect([]string{"quick-safe"}, nil)
+	scheduledProfileSelect.SetSelected("quick-safe")
+	scheduleStateEntry := widget.NewEntry()
+	scheduleStateEntry.SetText(".duplica-scan/scheduler-state.json")
+	scheduledReportDirEntry := widget.NewEntry()
+	scheduledReportDirEntry.SetText(".duplica-scan/reports")
 	cleanupDeleteModeSelect := widget.NewSelect([]string{"Delete permanently", "Move to safety backup"}, nil)
 	cleanupDeleteModeSelect.SetSelected("Delete permanently")
 	cleanupQuarantineEntry := widget.NewEntry()
@@ -705,7 +713,30 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject)
 		status.SetText("Running cleanup...")
 		appendOutput("Starting cleanup run")
 		go func() {
-			report, runErr := engine.Run(context.Background(), cfg)
+			var report devcleanup.RunReport
+			var runErr error
+			usedSchedule := false
+			if scheduleModeSelect.Selected != "off" {
+				appendOutput("Checking schedule window before cleanup...")
+				report, usedSchedule, runErr = devcleanup.RunScheduledCleanup(
+					context.Background(),
+					engine,
+					devcleanup.BuiltinSafeProfile(strings.TrimSpace(strings.ToLower(scheduledProfileSelect.Selected))),
+					devcleanup.ScheduleKind(strings.TrimSpace(strings.ToLower(scheduleModeSelect.Selected))),
+					strings.TrimSpace(scheduleStateEntry.Text),
+					strings.TrimSpace(scheduledReportDirEntry.Text),
+				)
+				if runErr == nil && !usedSchedule {
+					fyne.Do(func() {
+						runBtn.Enable()
+						status.SetText("Skipped (already run in this period)")
+					})
+					appendOutput("Scheduled cleanup skipped (already run in the current period).")
+					return
+				}
+			} else {
+				report, runErr = engine.Run(context.Background(), cfg)
+			}
 			if runErr != nil {
 				fyne.Do(func() {
 					runBtn.Enable()
@@ -718,6 +749,9 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject)
 			appendOutput(fmt.Sprintf("Planned tasks: %d | Attempted: %d | Skipped: %d", report.Planned, report.Attempted, report.Skipped))
 			appendOutput(fmt.Sprintf("Reclaimed: %s", formatBytes(report.ReclaimedBytes)))
 			appendOutput(fmt.Sprintf("Duration: %s", report.Duration.Round(time.Millisecond)))
+			if usedSchedule {
+				appendOutput("Cleanup run mode: scheduled")
+			}
 
 			if reportFormat.Selected != "none" {
 				path := strings.TrimSpace(reportPath.Text)
@@ -770,6 +804,10 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject)
 	cleanupOutputForm := widget.NewForm(
 		widget.NewFormItem("Report type", reportFormat),
 		widget.NewFormItem("Save report to", reportPath),
+		widget.NewFormItem("Auto schedule", scheduleModeSelect),
+		widget.NewFormItem("Schedule profile", scheduledProfileSelect),
+		widget.NewFormItem("Schedule state file", scheduleStateEntry),
+		widget.NewFormItem("Scheduled reports folder", scheduledReportDirEntry),
 		widget.NewFormItem("Delete mode", cleanupDeleteModeSelect),
 		widget.NewFormItem("Safety backup folder", cleanupQuarantineEntry),
 	)
