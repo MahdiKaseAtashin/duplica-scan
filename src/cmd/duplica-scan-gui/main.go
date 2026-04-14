@@ -497,12 +497,13 @@ func main() {
 			)),
 		),
 	)
+	modulesArea := container.NewMax(widget.NewLabel("Loading quick actions..."))
 	homeView = container.NewBorder(
 		container.NewVBox(widget.NewLabel(fmt.Sprintf("Duplica Scan GUI %s", buildinfo.Version))),
 		nil,
 		nil,
 		nil,
-		container.NewVScroll(container.NewVBox(heroSection, healthCard)),
+		container.NewVScroll(container.NewVBox(heroSection, healthCard, widget.NewLabel("Quick actions"), modulesArea)),
 	)
 	content = container.NewMax(homeView)
 
@@ -597,6 +598,36 @@ func main() {
 		})
 	})
 	settingsBtn.Importance = widget.MediumImportance
+	modulesArea.Objects = []fyne.CanvasObject{
+		container.NewGridWithColumns(
+			2,
+			buildFeatureCard(
+				"Scan duplicate files",
+				"Find repeated files and review side-by-side before deleting.",
+				theme.SearchIcon(),
+				func() { updateTab("duplicate") },
+			),
+			buildFeatureCard(
+				"Run cleanup",
+				"Clean cache, temp, and optional build artifacts safely.",
+				theme.DeleteIcon(),
+				func() { updateTab("cleanup") },
+			),
+			buildFeatureCard(
+				"Open settings",
+				"Change language, accessibility, risk defaults, and outputs.",
+				theme.SettingsIcon(),
+				func() { settingsBtn.OnTapped() },
+			),
+			buildFeatureCard(
+				"Refresh system health",
+				"Recalculate cache/temp sizes and latest activity stats.",
+				theme.ViewRefreshIcon(),
+				func() { refreshHealthCard() },
+			),
+		),
+	}
+	modulesArea.Refresh()
 
 	sidebarBg := canvas.NewRectangle(color.RGBA{R: 21, G: 24, B: 31, A: 255})
 	sidebarBg.SetMinSize(fyne.NewSize(220, 10))
@@ -746,14 +777,63 @@ func openSettingsHub(
 		widget.NewFormItem(localize(prefs.Language, "language"), languageSelect),
 		widget.NewFormItem(localize(prefs.Language, "text_size"), textSizeSelect),
 	)
+	var rootTabs *container.AppTabs
+	settingsSearch := widget.NewEntry()
+	settingsSearch.SetPlaceHolder("Search settings (theme, language, duplicate, cleanup)")
+	settingsSearchResult := widget.NewLabel("")
+	jumpTo := func(target string) {
+		switch target {
+		case "duplicate":
+			if rootTabs != nil {
+				rootTabs.SelectIndex(1)
+			}
+		case "cleanup":
+			if rootTabs != nil {
+				rootTabs.SelectIndex(2)
+			}
+		default:
+			if rootTabs != nil {
+				rootTabs.SelectIndex(0)
+			}
+		}
+	}
+	settingsSearch.OnChanged = func(raw string) {
+		q := strings.ToLower(strings.TrimSpace(raw))
+		switch {
+		case q == "":
+			settingsSearchResult.SetText("")
+		case strings.Contains(q, "dup"):
+			settingsSearchResult.SetText("Jump: Duplicate Files settings")
+			jumpTo("duplicate")
+		case strings.Contains(q, "clean"), strings.Contains(q, "risk"), strings.Contains(q, "quarantine"):
+			settingsSearchResult.SetText("Jump: Cleanup settings")
+			jumpTo("cleanup")
+		case strings.Contains(q, "theme"), strings.Contains(q, "language"), strings.Contains(q, "text"), strings.Contains(q, "home"):
+			settingsSearchResult.SetText("Jump: General settings")
+			jumpTo("general")
+		default:
+			settingsSearchResult.SetText("No direct match. Try: theme, language, duplicate, cleanup")
+		}
+	}
+	quickSettingsCards := container.NewGridWithColumns(
+		3,
+		buildFeatureCard("General", "Theme, language, text size, default page", theme.SettingsIcon(), func() { jumpTo("general") }),
+		buildFeatureCard("Duplicate Files", "Matching mode, filters, deletion output", theme.SearchIcon(), func() { jumpTo("duplicate") }),
+		buildFeatureCard("Cleanup", "Risk, scope, reports, safety backup", theme.DeleteIcon(), func() { jumpTo("cleanup") }),
+	)
 	generalSection := container.NewVBox(
 		widget.NewLabel(localize(prefs.Language, "settings")),
+		widget.NewLabel("Find and open settings quickly"),
+		settingsSearch,
+		settingsSearchResult,
+		quickSettingsCards,
+		widget.NewSeparator(),
 		widget.NewLabel("Accessibility and localization"),
 		generalForm,
 		container.NewHBox(layout.NewSpacer(), applyGeneralBtn),
 	)
 
-	rootTabs := container.NewAppTabs(
+	rootTabs = container.NewAppTabs(
 		container.NewTabItem(localize(prefs.Language, "settings"), container.NewPadded(generalSection)),
 		container.NewTabItem(localize(prefs.Language, "duplicate_tab"), duplicateSettings),
 		container.NewTabItem(localize(prefs.Language, "cleanup_tab"), cleanupSettings),
@@ -1119,6 +1199,27 @@ func buildStatTile(title string, value *widget.Label, accent color.Color) fyne.C
 		container.NewPadded(container.NewVBox(titleLabel, value)),
 	)
 	return container.NewStack(bg, body)
+}
+
+func buildFeatureCard(title string, subtitle string, icon fyne.Resource, onOpen func()) fyne.CanvasObject {
+	bg := canvas.NewRectangle(color.RGBA{R: 29, G: 34, B: 43, A: 255})
+	bg.CornerRadius = 10
+	titleLabel := widget.NewLabel(title)
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+	subLabel := widget.NewLabel(subtitle)
+	subLabel.Wrapping = fyne.TextWrapWord
+	openBtn := widget.NewButtonWithIcon("Open", icon, func() {
+		if onOpen != nil {
+			onOpen()
+		}
+	})
+	openBtn.Importance = widget.HighImportance
+	content := container.NewPadded(container.NewVBox(
+		titleLabel,
+		subLabel,
+		container.NewHBox(layout.NewSpacer(), openBtn),
+	))
+	return container.NewStack(bg, content)
 }
 
 func parseExtensions(raw string) map[string]struct{} {
