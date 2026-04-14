@@ -7,6 +7,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,9 +26,11 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -43,18 +46,19 @@ func main() {
 	w.Resize(fyne.NewSize(980, 760))
 
 	var scanView fyne.CanvasObject
+	var content *fyne.Container
 
 	pathEntry := widget.NewEntry()
-	pathEntry.SetPlaceHolder("Select directory or drive root")
+	pathEntry.SetPlaceHolder("Choose a folder to scan")
 
 	hashWorkersEntry := widget.NewEntry()
 	hashWorkersEntry.SetText(strconv.Itoa(runtime.NumCPU()))
 
 	excludeExtsEntry := widget.NewEntry()
-	excludeExtsEntry.SetPlaceHolder(".log,.tmp")
+	excludeExtsEntry.SetPlaceHolder("Example: .log,.tmp")
 
 	excludeDirsEntry := widget.NewEntry()
-	excludeDirsEntry.SetPlaceHolder("node_modules,.git")
+	excludeDirsEntry.SetPlaceHolder("Example: node_modules,.git")
 
 	minSizeEntry := widget.NewEntry()
 	minSizeEntry.SetText("0")
@@ -66,12 +70,19 @@ func main() {
 
 	autoSelectSelect := widget.NewSelect([]string{"none", "newest", "oldest"}, nil)
 	autoSelectSelect.SetSelected("none")
+	matchModeSelect := widget.NewSelect([]string{
+		"Same content",
+		"Same file name",
+		"Same file name and content",
+		"Same file size (fast)",
+	}, nil)
+	matchModeSelect.SetSelected("Same content")
 
 	exportFormatSelect := widget.NewSelect([]string{"none", "csv", "json"}, nil)
 	exportFormatSelect.SetSelected("none")
 
 	exportPathEntry := widget.NewEntry()
-	exportPathEntry.SetPlaceHolder("./reports/duplicate-report-*.json")
+	exportPathEntry.SetPlaceHolder("Where to save the report")
 
 	statusLabel := widget.NewLabel("Ready")
 	stepLabel := widget.NewLabel("")
@@ -93,7 +104,7 @@ func main() {
 		})
 	}
 
-	browseBtn := widget.NewButton("Browse...", func() {
+	browseBtn := widget.NewButton("Choose Folder", func() {
 		dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 			if err != nil {
 				dialog.ShowError(err, w)
@@ -107,7 +118,7 @@ func main() {
 	})
 
 	var runBtn *widget.Button
-	runBtn = widget.NewButton("Run Scan", func() {
+	runBtn = widget.NewButton("Start Scan", func() {
 		rootPath := strings.TrimSpace(pathEntry.Text)
 		if rootPath == "" {
 			dialog.ShowInformation("Missing path", "Please choose a directory or drive root to scan.", w)
@@ -228,7 +239,10 @@ func main() {
 						detailLabel.SetText(fmt.Sprintf("Hashed %d / %d · %s", p.HashedFiles, p.TotalToHash, cur))
 					})
 				},
-				duplicates.DetectOptions{HashWorkers: hashWorkers},
+				duplicates.DetectOptions{
+					HashWorkers: hashWorkers,
+					MatchMode:   duplicateMatchModeFromLabel(matchModeSelect.Selected),
+				},
 			)
 			fyne.Do(func() {
 				hashProgress.SetValue(1)
@@ -238,7 +252,7 @@ func main() {
 			appendOutput(fmt.Sprintf("Scanner non-fatal errors: %d", len(scanSummary.Errors)))
 			appendOutput(fmt.Sprintf("Hash non-fatal errors: %d", len(hashErrors)))
 			appendOutput("")
-			appendOutput(renderGroups(groups))
+			appendOutput(renderGroupsPreview(groups, 8, 6))
 
 			initialSelection := make(map[string]struct{})
 			if strategy != selection.StrategyManual {
@@ -258,7 +272,10 @@ func main() {
 
 			onBack := func() {
 				fyne.Do(func() {
-					w.SetContent(scanView)
+					if content != nil {
+						content.Objects = []fyne.CanvasObject{scanView}
+						content.Refresh()
+					}
 					statusLabel.SetText("Ready")
 				})
 			}
@@ -279,36 +296,41 @@ func main() {
 				detailLabel.Hide()
 				runBtn.Enable()
 				statusLabel.SetText(fmt.Sprintf("Done in %s", time.Since(start).Round(time.Millisecond)))
-				w.SetContent(resultsView)
+				if content != nil {
+					content.Objects = []fyne.CanvasObject{resultsView}
+					content.Refresh()
+				}
 			})
 		}()
 	})
 
-	form := widget.NewForm(
-		widget.NewFormItem("Path", container.NewBorder(nil, nil, nil, browseBtn, pathEntry)),
-		widget.NewFormItem("Hash workers", hashWorkersEntry),
-		widget.NewFormItem("Exclude extensions", excludeExtsEntry),
-		widget.NewFormItem("Exclude directories", excludeDirsEntry),
-		widget.NewFormItem("Min size bytes", minSizeEntry),
-		widget.NewFormItem("Max size bytes", maxSizeEntry),
-		widget.NewFormItem("Auto-select", autoSelectSelect),
-		widget.NewFormItem("Export format", exportFormatSelect),
-		widget.NewFormItem("Export path", exportPathEntry),
+	duplicateGeneralForm := widget.NewForm(
+		widget.NewFormItem("Dry run", dryRunCheck),
+		widget.NewFormItem("Scan speed", hashWorkersEntry),
+		widget.NewFormItem("How to detect duplicates", matchModeSelect),
+		widget.NewFormItem("Auto pick files to remove", autoSelectSelect),
 	)
-	openDuplicateSettings := func() {
-		settingsContent := container.NewVScroll(container.NewVBox(
-			widget.NewLabel("Duplicate scan advanced settings"),
-			dryRunCheck,
-			form,
-		))
-		settingsContent.SetMinSize(fyne.NewSize(700, 480))
-		dialog.NewCustom("Duplicate Scan Settings", "Close", settingsContent, w).Show()
-	}
+	duplicateFilterForm := widget.NewForm(
+		widget.NewFormItem("Skip file types", excludeExtsEntry),
+		widget.NewFormItem("Skip folders", excludeDirsEntry),
+		widget.NewFormItem("Minimum file size (bytes)", minSizeEntry),
+		widget.NewFormItem("Maximum file size (bytes)", maxSizeEntry),
+	)
+	duplicateOutputForm := widget.NewForm(
+		widget.NewFormItem("Report type", exportFormatSelect),
+		widget.NewFormItem("Save report to", exportPathEntry),
+	)
+	duplicateSettingsTabs := container.NewAppTabs(
+		container.NewTabItem("General", container.NewPadded(duplicateGeneralForm)),
+		container.NewTabItem("Filters", container.NewPadded(duplicateFilterForm)),
+		container.NewTabItem("Output", container.NewPadded(duplicateOutputForm)),
+	)
+	duplicateSettingsTabs.SetTabLocation(container.TabLocationTop)
 
 	scanView = container.NewBorder(
 		container.NewVBox(
 			widget.NewLabel(fmt.Sprintf("Duplica Scan GUI %s", buildinfo.Version)),
-			widget.NewLabel("Basic mode: choose a path and run."),
+			widget.NewLabel("Quick mode: choose a folder and start."),
 			container.NewBorder(nil, nil, nil, browseBtn, pathEntry),
 			runBtn,
 			statusLabel,
@@ -322,19 +344,45 @@ func main() {
 		nil,
 		container.NewVScroll(output),
 	)
-	cleanupView, openCleanupSettings := buildCleanupView(w)
-	tabs := container.NewAppTabs(
-		container.NewTabItem("Duplicate Files", scanView),
-		container.NewTabItem("Cleanup", cleanupView),
-	)
-	tabs.SetTabLocation(container.TabLocationTop)
+	cleanupView, cleanupSettingsTabs := buildCleanupView(w)
+	content = container.NewMax(scanView)
 
-	settingsMenu := fyne.NewMenu("Settings",
-		fyne.NewMenuItem("Duplicate Scan...", openDuplicateSettings),
-		fyne.NewMenuItem("Cleanup...", openCleanupSettings),
+	var duplicateTabBtn *widget.Button
+	var cleanupTabBtn *widget.Button
+	updateTab := func(tab string) {
+		if tab == "cleanup" {
+			content.Objects = []fyne.CanvasObject{cleanupView}
+			duplicateTabBtn.Importance = widget.MediumImportance
+			cleanupTabBtn.Importance = widget.HighImportance
+		} else {
+			content.Objects = []fyne.CanvasObject{scanView}
+			duplicateTabBtn.Importance = widget.HighImportance
+			cleanupTabBtn.Importance = widget.MediumImportance
+		}
+		content.Refresh()
+		duplicateTabBtn.Refresh()
+		cleanupTabBtn.Refresh()
+	}
+	duplicateTabBtn = widget.NewButton("Duplicate Files", func() {
+		updateTab("duplicate")
+	})
+	cleanupTabBtn = widget.NewButton("Cleanup", func() {
+		updateTab("cleanup")
+	})
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
+		openSettingsHub(duplicateSettingsTabs, cleanupSettingsTabs, updateTab)
+	})
+	settingsBtn.Importance = widget.MediumImportance
+
+	topRow := container.NewBorder(
+		nil,
+		widget.NewSeparator(),
+		container.NewHBox(duplicateTabBtn, cleanupTabBtn),
+		settingsBtn,
+		nil,
 	)
-	w.SetMainMenu(fyne.NewMainMenu(settingsMenu))
-	w.SetContent(tabs)
+	updateTab("duplicate")
+	w.SetContent(container.NewBorder(topRow, nil, nil, nil, content))
 	w.ShowAndRun()
 }
 
@@ -344,6 +392,71 @@ func parseInt(raw string, fallback int) (int, error) {
 		return fallback, nil
 	}
 	return strconv.Atoi(raw)
+}
+
+func duplicateMatchModeFromLabel(label string) duplicates.MatchMode {
+	switch strings.TrimSpace(strings.ToLower(label)) {
+	case "same file name":
+		return duplicates.MatchModeName
+	case "same file name and content":
+		return duplicates.MatchModeNameContent
+	case "same file size (fast)":
+		return duplicates.MatchModeSize
+	default:
+		return duplicates.MatchModeContent
+	}
+}
+
+func openSettingsHub(duplicateSettings fyne.CanvasObject, cleanupSettings fyne.CanvasObject, updateTab func(string)) {
+	hub := fyne.CurrentApp().NewWindow("Settings")
+	hub.Resize(fyne.NewSize(900, 620))
+
+	landingSelect := widget.NewSelect([]string{"Duplicate Files", "Cleanup"}, nil)
+	landingSelect.SetSelected("Duplicate Files")
+	themeSelect := widget.NewSelect([]string{"System", "Dark", "Light"}, nil)
+	themeSelect.SetSelected("System")
+	applyGeneralBtn := widget.NewButton("Save Changes", func() {
+		switch themeSelect.Selected {
+		case "Dark":
+			fyne.CurrentApp().Settings().SetTheme(theme.DarkTheme())
+		case "Light":
+			fyne.CurrentApp().Settings().SetTheme(theme.LightTheme())
+		default:
+			// Keep default/system theme behavior by re-applying current app theme.
+			fyne.CurrentApp().Settings().SetTheme(theme.DefaultTheme())
+		}
+		if landingSelect.Selected == "Cleanup" {
+			updateTab("cleanup")
+		} else {
+			updateTab("duplicate")
+		}
+	})
+	generalForm := widget.NewForm(
+		widget.NewFormItem("Open this page first", landingSelect),
+		widget.NewFormItem("Theme", themeSelect),
+	)
+	generalSection := container.NewVBox(
+		widget.NewLabel("General Settings"),
+		widget.NewLabel("Change basic app behavior and look."),
+		generalForm,
+		container.NewHBox(layout.NewSpacer(), applyGeneralBtn),
+	)
+
+	rootTabs := container.NewAppTabs(
+		container.NewTabItem("General", container.NewPadded(generalSection)),
+		container.NewTabItem("Duplicate Files", duplicateSettings),
+		container.NewTabItem("Cleanup", cleanupSettings),
+	)
+	rootTabs.SetTabLocation(container.TabLocationTop)
+
+	hub.SetContent(container.NewBorder(
+		nil,
+		container.NewPadded(container.NewHBox(layout.NewSpacer(), widget.NewButton("Done", func() { hub.Close() }))),
+		nil,
+		nil,
+		rootTabs,
+	))
+	hub.Show()
 }
 
 func parseInt64(raw string, fallback int64) (int64, error) {
@@ -414,22 +527,43 @@ func parseCSVSet(raw string, normalizer func(string) string) map[string]struct{}
 	return result
 }
 
-func renderGroups(groups []duplicates.Group) string {
+func renderGroupsPreview(groups []duplicates.Group, maxGroups int, maxFilesPerGroup int) string {
 	if len(groups) == 0 {
 		return "No duplicates found."
 	}
+	if maxGroups < 1 {
+		maxGroups = 1
+	}
+	if maxFilesPerGroup < 1 {
+		maxFilesPerGroup = 1
+	}
 	var b strings.Builder
-	for i, group := range groups {
+	limit := len(groups)
+	if limit > maxGroups {
+		limit = maxGroups
+	}
+	for i, group := range groups[:limit] {
 		b.WriteString(fmt.Sprintf("Group %d | size: %d | hash: %s\n", i+1, group.Size, group.Hash))
-		for _, file := range group.Files {
+		fileLimit := len(group.Files)
+		if fileLimit > maxFilesPerGroup {
+			fileLimit = maxFilesPerGroup
+		}
+		for _, file := range group.Files[:fileLimit] {
 			b.WriteString(fmt.Sprintf("  - %s | %s | %d\n", file.Name, file.Path, file.Size))
 		}
+		if len(group.Files) > fileLimit {
+			b.WriteString(fmt.Sprintf("  ... %d more files in this group\n", len(group.Files)-fileLimit))
+		}
 		b.WriteString("\n")
+	}
+	if len(groups) > limit {
+		b.WriteString(fmt.Sprintf("Showing %d of %d groups in log preview.\n", limit, len(groups)))
+		b.WriteString("Use Export for the full report.\n")
 	}
 	return b.String()
 }
 
-func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
+func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, fyne.CanvasObject) {
 	var mainView fyne.CanvasObject
 	var cleanupRoot *fyne.Container
 
@@ -448,21 +582,21 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
 	minAgeHours.SetText("24")
 
 	includeCategories := widget.NewEntry()
-	includeCategories.SetPlaceHolder("os-temp,package-manager,ide")
+	includeCategories.SetPlaceHolder("Example: os-temp,package-manager")
 	includeIDs := widget.NewEntry()
-	includeIDs.SetPlaceHolder("optional task IDs")
+	includeIDs.SetPlaceHolder("Optional: specific cleanup tasks")
 	excludeIDs := widget.NewEntry()
-	excludeIDs.SetPlaceHolder("optional task IDs")
+	excludeIDs.SetPlaceHolder("Optional: tasks to skip")
 	patternRoots := widget.NewEntry()
-	patternRoots.SetPlaceHolder("project-build-artifacts=D:/Projects|D:/Workspaces")
+	patternRoots.SetPlaceHolder("Example: project-build-artifacts=D:/Projects")
 
 	reportFormat := widget.NewSelect([]string{"none", "json", "md", "html"}, nil)
 	reportFormat.SetSelected("none")
 	reportPath := widget.NewEntry()
-	reportPath.SetPlaceHolder("./reports/dev-cleanup-report.json")
+	reportPath.SetPlaceHolder("Where to save the cleanup report")
 	targetPathEntry := widget.NewEntry()
-	targetPathEntry.SetPlaceHolder("Optional project path")
-	targetBrowseBtn := widget.NewButton("Browse...", func() {
+	targetPathEntry.SetPlaceHolder("Optional: choose a folder to focus cleanup")
+	targetBrowseBtn := widget.NewButton("Choose Folder", func() {
 		dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 			if err != nil {
 				dialog.ShowError(err, parent)
@@ -489,7 +623,7 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
 	}
 
 	var runBtn *widget.Button
-	runBtn = widget.NewButton("Run Cleanup", func() {
+	runBtn = widget.NewButton("Start Cleanup", func() {
 		p, err := parseInt(parallelism.Text, runtime.NumCPU())
 		if err != nil || p < 1 {
 			dialog.ShowInformation("Invalid parallelism", "Parallelism must be a positive integer.", parent)
@@ -502,18 +636,19 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
 		}
 
 		cfg := devcleanup.Config{
-			MaxRisk:           devcleanup.ParseRiskLevel(strings.TrimSpace(strings.ToLower(riskSelect.Selected))),
-			DryRun:            dryRun.Checked,
-			AssumeYes:         assumeYes.Checked,
-			Verbose:           false,
-			Parallelism:       p,
-			MinAge:            time.Duration(minHours) * time.Hour,
-			ProcessAware:      processAware.Checked,
-			IncludeCategories: parseNames(includeCategories.Text),
-			IncludeIDs:        parseNames(includeIDs.Text),
-			ExcludeIDs:        parseNames(excludeIDs.Text),
-			PathOverrides:     map[string][]string{},
-			PatternRoots:      parsePatternRootsArg(patternRoots.Text),
+			MaxRisk:             devcleanup.ParseRiskLevel(strings.TrimSpace(strings.ToLower(riskSelect.Selected))),
+			DryRun:              dryRun.Checked,
+			AssumeYes:           assumeYes.Checked,
+			Verbose:             false,
+			DisableCommandTasks: true,
+			Parallelism:         p,
+			MinAge:              time.Duration(minHours) * time.Hour,
+			ProcessAware:        processAware.Checked,
+			IncludeCategories:   parseNames(includeCategories.Text),
+			IncludeIDs:          parseNames(includeIDs.Text),
+			ExcludeIDs:          parseNames(excludeIDs.Text),
+			PathOverrides:       map[string][]string{},
+			PatternRoots:        parsePatternRootsArg(patternRoots.Text),
 		}
 		targetPath := strings.TrimSpace(targetPathEntry.Text)
 		if targetPath != "" {
@@ -549,7 +684,7 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
 			}
 
 			appendOutput(fmt.Sprintf("Planned tasks: %d | Attempted: %d | Skipped: %d", report.Planned, report.Attempted, report.Skipped))
-			appendOutput(fmt.Sprintf("Reclaimed bytes: %d", report.ReclaimedBytes))
+			appendOutput(fmt.Sprintf("Reclaimed: %s", formatBytes(report.ReclaimedBytes)))
 			appendOutput(fmt.Sprintf("Duration: %s", report.Duration.Round(time.Millisecond)))
 
 			if reportFormat.Selected != "none" {
@@ -580,44 +715,46 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
 		}()
 	})
 
-	quickTempBtn := widget.NewButton("Quick Temp Cleanup", func() {
+	quickTempBtn := widget.NewButton("Quick Temporary Files Cleanup", func() {
 		includeCategories.SetText("os-temp")
 		riskSelect.SetSelected("safe")
 		dryRun.SetChecked(true)
 	})
 
-	settingsForm := widget.NewForm(
-		widget.NewFormItem("Risk", riskSelect),
-		widget.NewFormItem("Parallelism", parallelism),
-		widget.NewFormItem("Min age hours", minAgeHours),
-		widget.NewFormItem("Include categories", includeCategories),
-		widget.NewFormItem("Include IDs", includeIDs),
-		widget.NewFormItem("Exclude IDs", excludeIDs),
-		widget.NewFormItem("Pattern roots", patternRoots),
-		widget.NewFormItem("Report format", reportFormat),
-		widget.NewFormItem("Report path", reportPath),
+	cleanupGeneralForm := widget.NewForm(
+		widget.NewFormItem("Dry run", dryRun),
+		widget.NewFormItem("Cleanup level", riskSelect),
+		widget.NewFormItem("Skip when apps are running", processAware),
+		widget.NewFormItem("Skip confirmation prompts", assumeYes),
+		widget.NewFormItem("Cleanup speed", parallelism),
+		widget.NewFormItem("Only clean files older than (hours)", minAgeHours),
 	)
-	openSettings := func() {
-		settingsContent := container.NewVScroll(container.NewVBox(
-			widget.NewLabel("Developer cleanup advanced settings"),
-			dryRun,
-			processAware,
-			assumeYes,
-			settingsForm,
-		))
-		settingsContent.SetMinSize(fyne.NewSize(700, 520))
-		dialog.NewCustom("Cleanup Settings", "Close", settingsContent, parent).Show()
-	}
+	cleanupScopeForm := widget.NewForm(
+		widget.NewFormItem("Include groups", includeCategories),
+		widget.NewFormItem("Include task IDs", includeIDs),
+		widget.NewFormItem("Exclude task IDs", excludeIDs),
+		widget.NewFormItem("Build folders location", patternRoots),
+	)
+	cleanupOutputForm := widget.NewForm(
+		widget.NewFormItem("Report type", reportFormat),
+		widget.NewFormItem("Save report to", reportPath),
+	)
+	cleanupSettingsTabs := container.NewAppTabs(
+		container.NewTabItem("General", container.NewPadded(cleanupGeneralForm)),
+		container.NewTabItem("Scope", container.NewPadded(cleanupScopeForm)),
+		container.NewTabItem("Output", container.NewPadded(cleanupOutputForm)),
+	)
+	cleanupSettingsTabs.SetTabLocation(container.TabLocationTop)
 
 	mainView = container.NewBorder(
 		container.NewVBox(
-			widget.NewLabel("Cleanup and temp-cache maintenance"),
-			widget.NewLabel("Basic mode: choose an optional path and run."),
+			widget.NewLabel("Cleanup temporary and app cache files"),
+			widget.NewLabel("Quick mode: optionally choose a folder, then start."),
 			container.NewBorder(nil, nil, nil, targetBrowseBtn, targetPathEntry),
 			container.NewHBox(
 				runBtn,
 				quickTempBtn,
-				widget.NewButton("View Last Result", func() {
+				widget.NewButton("View Last Results", func() {
 					if !hasReport {
 						dialog.ShowInformation("No results yet", "Run cleanup first to view results.", parent)
 						return
@@ -633,20 +770,30 @@ func buildCleanupView(parent fyne.Window) (fyne.CanvasObject, func()) {
 		container.NewVScroll(output),
 	)
 	cleanupRoot = container.NewMax(mainView)
-	return cleanupRoot, openSettings
+	return cleanupRoot, cleanupSettingsTabs
 }
 
 func showCleanupResults(parent fyne.Window, root *fyne.Container, backView fyne.CanvasObject, report devcleanup.RunReport, runLog string) {
 	summary := widget.NewLabel(fmt.Sprintf(
-		"Planned: %d | Attempted: %d | Skipped: %d | Reclaimed: %d bytes | Duration: %s",
+		"Planned: %d | Attempted: %d | Skipped: %d | Reclaimed: %s | Duration: %s",
 		report.Planned,
 		report.Attempted,
 		report.Skipped,
-		report.ReclaimedBytes,
+		formatBytes(report.ReclaimedBytes),
 		report.Duration.Round(time.Millisecond),
 	))
+	summary.Wrapping = fyne.TextWrapWord
 
-	rows := make([]string, 0, len(report.Results))
+	type cleanupResultRow struct {
+		Status    string
+		Name      string
+		Category  string
+		Risk      string
+		Items     string
+		Reclaimed string
+		Error     string
+	}
+	rows := make([]cleanupResultRow, 0, len(report.Results))
 	for _, result := range report.Results {
 		status := "skipped"
 		if result.Attempted && result.Error == "" {
@@ -655,56 +802,224 @@ func showCleanupResults(parent fyne.Window, root *fyne.Container, backView fyne.
 		if result.Error != "" {
 			status = "error"
 		}
-		rows = append(rows, fmt.Sprintf("[%s] %s (%s, %s) items=%d bytes=%d %s",
-			status,
-			result.Name,
-			result.Category,
-			result.Risk,
-			result.DeletedItems,
-			result.DeletedBytes,
-			result.Error,
-		))
+		rows = append(rows, cleanupResultRow{
+			Status:    status,
+			Name:      result.Name,
+			Category:  result.Category,
+			Risk:      result.Risk,
+			Items:     strconv.Itoa(result.DeletedItems),
+			Reclaimed: formatBytes(result.DeletedBytes),
+			Error:     result.Error,
+		})
 	}
 	if len(rows) == 0 {
-		rows = append(rows, "No task results.")
+		rows = append(rows, cleanupResultRow{
+			Status:    "n/a",
+			Name:      "No task results",
+			Category:  "-",
+			Risk:      "-",
+			Items:     "-",
+			Reclaimed: "-",
+			Error:     "",
+		})
 	}
-	resultList := widget.NewList(
-		func() int { return len(rows) },
-		func() fyne.CanvasObject {
-			l := widget.NewLabel("")
-			l.Wrapping = fyne.TextWrapWord
-			return l
-		},
-		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			obj.(*widget.Label).SetText(rows[id])
-		},
+
+	makeCell := func(text string, width float32, bold bool) fyne.CanvasObject {
+		label := widget.NewLabel(text)
+		label.Wrapping = fyne.TextWrapOff
+		label.Truncation = fyne.TextTruncateEllipsis
+		label.TextStyle = fyne.TextStyle{Bold: bold}
+		return container.NewGridWrap(fyne.NewSize(width, 24), label)
+	}
+	makeRow := func(cols ...fyne.CanvasObject) fyne.CanvasObject {
+		return container.NewHBox(cols...)
+	}
+	header := makeRow(
+		makeCell("Status", 82, true),
+		makeCell("Name", 170, true),
+		makeCell("Category", 110, true),
+		makeCell("Risk", 90, true),
+		makeCell("Items", 80, true),
+		makeCell("Reclaimed", 115, true),
+		makeCell("Error", 360, true),
 	)
+	tableRows := make([]fyne.CanvasObject, 0, len(rows)+1)
+	tableRows = append(tableRows, header)
+	for _, row := range rows {
+		tableRows = append(tableRows, makeRow(
+			makeCell(row.Status, 82, false),
+			makeCell(row.Name, 170, false),
+			makeCell(row.Category, 110, false),
+			makeCell(row.Risk, 90, false),
+			makeCell(row.Items, 80, false),
+			makeCell(row.Reclaimed, 115, false),
+			makeCell(row.Error, 360, false),
+		))
+	}
+	tableView := container.NewVScroll(container.NewVBox(tableRows...))
+	chartsView := buildCleanupChartsView(report)
 
 	logOutput := widget.NewMultiLineEntry()
 	logOutput.SetText(runLog)
 	logOutput.Disable()
 	logOutput.Wrapping = fyne.TextWrapWord
 
-	backBtn := widget.NewButton("Back to Cleanup", func() {
+	backBtn := widget.NewButton("Back", func() {
 		root.Objects = []fyne.CanvasObject{backView}
 		root.Refresh()
 	})
+	contentSwitcher := container.NewMax(tableView)
+	var tableViewBtn *widget.Button
+	var chartsViewBtn *widget.Button
+	switchToCharts := func() {
+		contentSwitcher.Objects = []fyne.CanvasObject{chartsView}
+	}
+	switchToTable := func() {
+		contentSwitcher.Objects = []fyne.CanvasObject{tableView}
+	}
+	applyView := func(view string) {
+		if view == "charts" {
+			switchToCharts()
+			tableViewBtn.Importance = widget.MediumImportance
+			chartsViewBtn.Importance = widget.HighImportance
+		} else {
+			switchToTable()
+			tableViewBtn.Importance = widget.HighImportance
+			chartsViewBtn.Importance = widget.MediumImportance
+		}
+		contentSwitcher.Refresh()
+		tableViewBtn.Refresh()
+		chartsViewBtn.Refresh()
+	}
+	tableViewBtn = widget.NewButtonWithIcon("", theme.ListIcon(), func() {
+		applyView("table")
+	})
+	chartsViewBtn = widget.NewButton("📊", func() {
+		applyView("charts")
+	})
+	tableViewBtn.Importance = widget.HighImportance
+	chartsViewBtn.Importance = widget.MediumImportance
+
+	resultSplit := container.NewVSplit(
+		contentSwitcher,
+		container.NewVScroll(logOutput),
+	)
+	resultSplit.Offset = 0.58
 
 	resultView := container.NewBorder(
 		container.NewVBox(
 			widget.NewLabel("Cleanup Results"),
 			summary,
+			container.NewHBox(widget.NewLabel("View:"), tableViewBtn, chartsViewBtn),
 		),
 		container.NewVBox(backBtn),
 		nil,
 		nil,
-		container.NewVSplit(
-			container.NewVScroll(resultList),
-			container.NewVScroll(logOutput),
-		),
+		resultSplit,
 	)
+	applyView("table")
 	root.Objects = []fyne.CanvasObject{resultView}
 	root.Refresh()
+}
+
+func buildCleanupChartsView(report devcleanup.RunReport) fyne.CanvasObject {
+	statusCounts := map[string]int{"ok": 0, "skipped": 0, "error": 0}
+	categoryBytes := make(map[string]int64)
+	maxCount := 1
+	maxBytes := int64(1)
+	for _, result := range report.Results {
+		status := "skipped"
+		if result.Attempted && result.Error == "" {
+			status = "ok"
+		}
+		if result.Error != "" {
+			status = "error"
+		}
+		statusCounts[status]++
+		if statusCounts[status] > maxCount {
+			maxCount = statusCounts[status]
+		}
+		categoryBytes[result.Category] += result.DeletedBytes
+		if categoryBytes[result.Category] > maxBytes {
+			maxBytes = categoryBytes[result.Category]
+		}
+	}
+
+	statusSection := container.NewVBox(widget.NewLabel("Task results overview"))
+	statusOrder := []struct {
+		Name  string
+		Color color.Color
+	}{
+		{Name: "ok", Color: color.RGBA{R: 76, G: 175, B: 80, A: 255}},
+		{Name: "skipped", Color: color.RGBA{R: 33, G: 150, B: 243, A: 255}},
+		{Name: "error", Color: color.RGBA{R: 239, G: 83, B: 80, A: 255}},
+	}
+	for _, item := range statusOrder {
+		statusSection.Add(buildHorizontalBar(item.Name, int64(statusCounts[item.Name]), int64(maxCount), item.Color, fmt.Sprintf("%d", statusCounts[item.Name])))
+	}
+
+	categorySection := container.NewVBox(widget.NewLabel("Freed space by type"))
+	categories := make([]string, 0, len(categoryBytes))
+	for category := range categoryBytes {
+		categories = append(categories, category)
+	}
+	sort.Strings(categories)
+	if len(categories) == 0 {
+		categories = []string{"none"}
+		categoryBytes["none"] = 0
+	}
+	for _, category := range categories {
+		categorySection.Add(buildHorizontalBar(category, categoryBytes[category], maxBytes, color.RGBA{R: 33, G: 150, B: 243, A: 255}, formatBytes(categoryBytes[category])))
+	}
+	volumeSection := container.NewVBox(widget.NewLabel("Freed space by drive"))
+	volumeKeys := make([]string, 0, len(report.FreedByVolume))
+	maxVolumeBytes := int64(1)
+	for volume, bytes := range report.FreedByVolume {
+		volumeKeys = append(volumeKeys, volume)
+		if bytes > maxVolumeBytes {
+			maxVolumeBytes = bytes
+		}
+	}
+	sort.Strings(volumeKeys)
+	if len(volumeKeys) == 0 {
+		volumeSection.Add(widget.NewLabel("No drive-level data available for this run."))
+	} else {
+		for _, volume := range volumeKeys {
+			volumeSection.Add(buildHorizontalBar(volume, report.FreedByVolume[volume], maxVolumeBytes, color.RGBA{R: 156, G: 39, B: 176, A: 255}, formatBytes(report.FreedByVolume[volume])))
+		}
+	}
+
+	return container.NewVScroll(container.NewVBox(
+		statusSection,
+		widget.NewSeparator(),
+		categorySection,
+		widget.NewSeparator(),
+		volumeSection,
+	))
+}
+
+func buildHorizontalBar(name string, value int64, max int64, barColor color.Color, valueLabel string) fyne.CanvasObject {
+	if max <= 0 {
+		max = 1
+	}
+	width := float32(520)
+	fillWidth := float32(value) / float32(max) * width
+	if fillWidth < 2 && value > 0 {
+		fillWidth = 2
+	}
+	bg := canvas.NewRectangle(color.RGBA{R: 58, G: 63, B: 73, A: 255})
+	bg.SetMinSize(fyne.NewSize(width, 16))
+	fg := canvas.NewRectangle(barColor)
+	fgContainer := container.NewGridWrap(fyne.NewSize(fillWidth, 16), fg)
+	bar := container.NewStack(bg, fgContainer)
+	leftLabel := widget.NewLabel(name)
+	leftLabel.Alignment = fyne.TextAlignLeading
+	left := container.NewGridWrap(fyne.NewSize(130, 24), leftLabel)
+	rightLabel := widget.NewLabel(valueLabel)
+	rightLabel.Alignment = fyne.TextAlignLeading
+	right := container.NewGridWrap(fyne.NewSize(90, 24), rightLabel)
+	barCell := container.NewGridWrap(fyne.NewSize(width, 24), container.NewCenter(bar))
+	return container.NewBorder(nil, nil, left, right, barCell)
 }
 
 func parsePatternRootsArg(raw string) map[string][]string {
@@ -818,7 +1133,17 @@ func buildResultsView(
 	for _, g := range originalGroups {
 		totalFiles += len(g.Files)
 		if len(g.Files) > 1 {
-			totalReclaimable += int64(len(g.Files)-1) * g.Size
+			groupTotal := int64(0)
+			keepLargest := int64(0)
+			for _, file := range g.Files {
+				groupTotal += file.Size
+				if file.Size > keepLargest {
+					keepLargest = file.Size
+				}
+			}
+			if groupTotal > keepLargest {
+				totalReclaimable += groupTotal - keepLargest
+			}
 		}
 	}
 
